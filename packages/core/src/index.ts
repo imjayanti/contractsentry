@@ -12,3 +12,5 @@ export type { ICodeAnalyzer } from "./domain/ICodeAnalyzer.js";
 export type { IValidator } from "./domain/IValidator.js";
 export type { IReporter } from "./domain/IReporter.js";
 export type { IConfigLoader, CsentryConfig } from "./domain/IConfigLoader.js";
+export { SchemaExtractor } from "./infrastructure/spec/SchemaExtractor.js";
+export { SwaggerSpecLoader } from "./infrastructure/spec/SwaggerSpecLoader.js";
