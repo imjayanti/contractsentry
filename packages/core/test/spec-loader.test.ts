@@ -59,13 +59,27 @@ describe("SwaggerSpecLoader", () => {
 
   it("resolves $ref schemas inline — no $ref strings remain", async () => {
     const doc = await loader.load(FIXTURE_30);
-    const getUserResponse = doc.paths["/users/{id}"]?.get?.responses["200"];
-    const schema = (
-      getUserResponse as { content: Record<string, { schema: unknown }> }
-    ).content["application/json"].schema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
-    expect(schema.properties).toBeDefined();
-    expect(schema.$ref).toBeUndefined();
+    // Use vitest property matchers to avoid unsafe double-casts
+    expect(doc.paths["/users/{id}"]?.get?.responses["200"]).toMatchObject({
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: expect.any(Object),
+          },
+        },
+      },
+    });
+    // Confirm $ref was resolved — no reference strings remain
+    const response = doc.paths["/users/{id}"]?.get?.responses["200"] as Record<
+      string,
+      unknown
+    >;
+    const content = response?.content as Record<
+      string,
+      { schema: Record<string, unknown> }
+    >;
+    expect(content?.["application/json"]?.schema?.$ref).toBeUndefined();
   });
 
   it("loads a spec with no paths", async () => {
