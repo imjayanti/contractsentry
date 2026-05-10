@@ -1,0 +1,18 @@
+swagger: "2.0"
+info:
+  title: Legacy API
+  version: "1.0.0"
+host: api.example.com
+basePath: /v1
+paths:
+  /users/{id}:
+    get:
+      summary: Get user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: integer
+      responses:
+        200:
+          description: OK
