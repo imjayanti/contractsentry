@@ -19,8 +19,13 @@ export class AnalysisError extends Error {
 }
 
 export class SubprocessError extends Error {
+  readonly exitCode: number;
+  readonly stderr: string;
+
   constructor(exitCode: number, stderr: string) {
     super(`Subprocess exited with code ${exitCode}: ${stderr}`);
     this.name = "SubprocessError";
+    this.exitCode = exitCode;
+    this.stderr = stderr;
   }
 }

@@ -202,4 +202,97 @@ describe("SchemaExtractor — edge cases", () => {
     } as unknown as OpenAPIDocument;
     expect(extractor.extract(doc).has("POST /upload:request")).toBe(false);
   });
+
+  it("extracts 'default' status code response", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Default API", version: "1.0.0" },
+      paths: {
+        "/items": {
+          get: {
+            responses: {
+              default: {
+                description: "Unexpected error",
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      properties: { message: { type: "string" } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(extractor.extract(doc).has("GET /items:default")).toBe(true);
+  });
+
+  it("skips options and trace methods — not in HTTP_METHODS", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Options API", version: "1.0.0" },
+      paths: {
+        "/resource": {
+          options: {
+            responses: {
+              "204": {
+                description: "CORS preflight",
+                content: {
+                  "application/json": { schema: { type: "object" } },
+                },
+              },
+            },
+          },
+          trace: {
+            responses: {
+              "200": {
+                description: "Trace",
+                content: {
+                  "application/json": { schema: { type: "object" } },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const schemas = extractor.extract(doc);
+    expect(schemas.has("OPTIONS /resource:204")).toBe(false);
+    expect(schemas.has("TRACE /resource:200")).toBe(false);
+  });
+
+  it("extracts both JSON and non-JSON content types — only JSON schema is captured", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Multi-type API", version: "1.0.0" },
+      paths: {
+        "/data": {
+          get: {
+            responses: {
+              "200": {
+                description: "OK",
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      properties: { id: { type: "integer" } },
+                    },
+                  },
+                  "application/xml": { schema: { type: "object" } },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const schemas = extractor.extract(doc);
+    expect(schemas.has("GET /data:200")).toBe(true);
+    expect(schemas.get("GET /data:200")).toMatchObject({
+      properties: { id: { type: "integer" } },
+    });
+  });
 });
