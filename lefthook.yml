@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: true
+  commands:
+    biome-check:
+      glob: "*.{ts,tsx,js,json}"
+      run: pnpm biome check --write {staged_files}
+      stage_fixed: true
+    ty-check:
+      glob: "*.py"
+      run: uv run ty check {staged_files}
+    ruff-check:
+      glob: "*.py"
+      run: uv run ruff check --fix {staged_files}
+      stage_fixed: true
