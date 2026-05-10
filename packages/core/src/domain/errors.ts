@@ -1,0 +1,22 @@
+export class SpecLoadError extends Error {
+  constructor(path: string, cause: Error) {
+    super(`Failed to load spec at "${path}": ${cause.message}`);
+    this.name = "SpecLoadError";
+    this.cause = cause;
+  }
+}
+
+export class AnalysisError extends Error {
+  constructor(file: string, cause: Error) {
+    super(`Failed to analyse "${file}": ${cause.message}`);
+    this.name = "AnalysisError";
+    this.cause = cause;
+  }
+}
+
+export class SubprocessError extends Error {
+  constructor(exitCode: number, stderr: string) {
+    super(`Subprocess exited with code ${exitCode}: ${stderr}`);
+    this.name = "SubprocessError";
+  }
+}
