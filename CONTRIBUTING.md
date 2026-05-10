@@ -82,7 +82,7 @@ pnpm changeset publish  # publish to npm (done by CI on version tag)
 <type>(<scope>): <subject>
 
 Types:  feat | fix | chore | ci | test | docs | refactor
-Scopes: repo
+Scopes: core | repo
 ```
 
 ## Reporting Issues
