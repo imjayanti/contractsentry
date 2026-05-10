@@ -1,4 +1,6 @@
 export class SpecLoadError extends Error {
+  override readonly cause: Error;
+
   constructor(path: string, cause: Error) {
     super(`Failed to load spec at "${path}": ${cause.message}`);
     this.name = "SpecLoadError";
@@ -7,6 +9,8 @@ export class SpecLoadError extends Error {
 }
 
 export class AnalysisError extends Error {
+  override readonly cause: Error;
+
   constructor(file: string, cause: Error) {
     super(`Failed to analyse "${file}": ${cause.message}`);
     this.name = "AnalysisError";

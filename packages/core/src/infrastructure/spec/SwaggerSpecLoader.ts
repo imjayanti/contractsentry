@@ -2,6 +2,10 @@ import SwaggerParser from "@apidevtools/swagger-parser";
 import type { ISpecLoader, OpenAPIDocument } from "../../domain/ISpecLoader.js";
 import { SpecLoadError } from "../../domain/errors.js";
 
+function isOpenAPI3(doc: Record<string, unknown>): boolean {
+  return typeof doc.openapi === "string" && doc.openapi.startsWith("3.");
+}
+
 export class SwaggerSpecLoader implements ISpecLoader {
   async load(path: string): Promise<OpenAPIDocument> {
     let doc: Record<string, unknown>;
@@ -21,6 +25,15 @@ export class SwaggerSpecLoader implements ISpecLoader {
         path,
         new Error(
           "Swagger 2.x is not supported. Please migrate to OpenAPI 3.x.",
+        ),
+      );
+    }
+
+    if (!isOpenAPI3(doc)) {
+      throw new SpecLoadError(
+        path,
+        new Error(
+          `Unsupported spec version. Expected OpenAPI 3.x, found: ${String(doc.openapi ?? "unknown")}`,
         ),
       );
     }
