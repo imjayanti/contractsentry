@@ -38,6 +38,6 @@ export class SwaggerSpecLoader implements ISpecLoader {
       );
     }
 
-    return doc as OpenAPIDocument;
+    return doc as unknown as OpenAPIDocument;
   }
 }

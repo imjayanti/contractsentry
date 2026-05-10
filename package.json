@@ -2,17 +2,17 @@
   "name": "contractsentry",
   "private": true,
   "scripts": {
-    "build":     "turbo build",
-    "test":      "turbo test",
+    "build": "turbo build",
+    "test": "turbo test",
     "typecheck": "turbo typecheck",
-    "lint":      "turbo lint",
-    "format":    "biome format --write .",
-    "check":     "biome check --write ."
+    "lint": "turbo lint",
+    "format": "biome format --write .",
+    "check": "biome check --write ."
   },
   "devDependencies": {
-    "@biomejs/biome":  "^1.9.0",
+    "@biomejs/biome": "^1.9.0",
     "@changesets/cli": "^2.27.0",
-    "lefthook":        "^1.7.0",
-    "turbo":           "^2.3.0"
+    "lefthook": "^1.7.0",
+    "turbo": "^2.3.0"
   }
 }

@@ -4,6 +4,9 @@ import type { OpenAPIDocument } from "../../domain/ISpecLoader.js";
 type SchemaObject = Record<string, unknown>;
 type SchemaMap = Map<string, SchemaObject>;
 
+// Template literal over the enum resolves to the string union "get" | "put" | ...
+type HttpMethod = `${OpenAPIV3.HttpMethods}`;
+
 const HTTP_METHODS = [
   "get",
   "head",
@@ -11,7 +14,7 @@ const HTTP_METHODS = [
   "put",
   "patch",
   "delete",
-] as const satisfies ReadonlyArray<keyof OpenAPIV3.PathItemObject>;
+] as const satisfies ReadonlyArray<HttpMethod>;
 
 export class SchemaExtractor {
   extract(doc: OpenAPIDocument): SchemaMap {

@@ -5,3 +5,5 @@ allowBuilds:
   '@biomejs/biome': true
   esbuild: true
   lefthook: true
+  tree-sitter: true
+  tree-sitter-typescript: true
