@@ -6,7 +6,7 @@ export {
   SpecLoadError,
   AnalysisError,
   SubprocessError,
-} from "./domain/errors.js";
+} from "./domain/Errors.js";
 export type { ISpecLoader, OpenAPIDocument } from "./domain/ISpecLoader.js";
 export type { ICodeAnalyzer } from "./domain/ICodeAnalyzer.js";
 export type { IValidator } from "./domain/IValidator.js";

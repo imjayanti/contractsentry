@@ -1,6 +1,6 @@
 import SwaggerParser from "@apidevtools/swagger-parser";
+import { SpecLoadError } from "../../domain/Errors.js";
 import type { ISpecLoader, OpenAPIDocument } from "../../domain/ISpecLoader.js";
-import { SpecLoadError } from "../../domain/errors.js";
 
 function isOpenApi3(doc: Record<string, unknown>): boolean {
   return typeof doc.openapi === "string" && doc.openapi.startsWith("3.");

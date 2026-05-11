@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
+import { AnalysisError } from "../../domain/Errors.js";
 import type { FunctionShape } from "../../domain/FunctionShape.js";
 import type { ICodeAnalyzer } from "../../domain/ICodeAnalyzer.js";
-import { AnalysisError } from "../../domain/errors.js";
 import { TreeSitterTypeScriptAnalyzer } from "./TreeSitterTypeScriptAnalyzer.js";
 
 export class FileCodeAnalyzer implements ICodeAnalyzer {

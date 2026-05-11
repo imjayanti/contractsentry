@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { AnalysisError, SpecLoadError } from "../src/domain/errors.js";
+import { AnalysisError, SpecLoadError } from "../src/domain/Errors.js";
 import { ScanOrchestrator } from "../src/infrastructure/scanner/ScanOrchestrator.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

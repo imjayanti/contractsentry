@@ -3,7 +3,7 @@ import {
   AnalysisError,
   SpecLoadError,
   SubprocessError,
-} from "../src/domain/errors.js";
+} from "../src/domain/Errors.js";
 
 describe("SpecLoadError", () => {
   const cause = new Error("file not found");
