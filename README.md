@@ -1,5 +1,8 @@
 # ContractSentry
 
+[![CI](https://github.com/contractsentry/contractsentry/actions/workflows/ci.yml/badge.svg)](https://github.com/contractsentry/contractsentry/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@contractsentry/cli)](https://www.npmjs.com/package/@contractsentry/cli)
+
 > Catch OpenAPI contract drift at dev time — before it hits production.
 
 AI coding tools (Copilot, Cursor, Claude Code) generate code that silently drifts from your OpenAPI contracts. ContractSentry is an open-source CLI that validates your TypeScript return shapes against your spec and fails CI when drift is detected.

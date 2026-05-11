@@ -46,7 +46,7 @@ pnpm format
 packages/
   core/                     — domain types, analyzers, validator, reporter, orchestrator
     src/
-      domain/               — Violation, FunctionShape, errors, port interfaces
+      domain/               — Violation, FunctionShape, Errors, port interfaces
       infrastructure/
         analyzer/           — TreeSitterTypeScriptAnalyzer, FileCodeAnalyzer
         config/             — CsentryConfigLoader
@@ -112,6 +112,8 @@ pnpm changeset          # describe your change and select affected packages
 pnpm changeset version  # bump versions (done by CI before release)
 pnpm changeset publish  # publish to npm (done by CI on version tag)
 ```
+
+Use `patch` for bug fixes, `minor` for new features, `major` for breaking changes.
 
 ## Commit Convention
 
