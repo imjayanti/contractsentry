@@ -16,3 +16,7 @@ export { SchemaExtractor } from "./infrastructure/spec/SchemaExtractor.js";
 export { OpenApiSpecLoader } from "./infrastructure/spec/OpenApiSpecLoader.js";
 export { ContractValidator } from "./infrastructure/validator/ContractValidator.js";
 export { FileCodeAnalyzer } from "./infrastructure/analyzer/FileCodeAnalyzer.js";
+export {
+  ScanOrchestrator,
+  type ScanInput,
+} from "./infrastructure/scanner/ScanOrchestrator.js";
