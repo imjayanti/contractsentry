@@ -60,6 +60,11 @@ packages/
       commands/
         check.ts            — runCheck logic (injectable deps for testing)
 
+.github/
+  workflows/
+    ci.yml                  — build, test, lint, typecheck on push and PRs to main
+    release.yml             — changesets version PR + npm publish on merge to main
+
 examples/
   petstore/                 — OpenAPI spec + TypeScript routes used as test fixtures
 
@@ -85,6 +90,18 @@ scripts/
 4. Run `pnpm test`
 5. Add a changeset: `pnpm changeset`
 6. Open a pull request
+
+## CI
+
+Two workflows run automatically:
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `ci.yml` | push + PR to `main` | Installs, builds, tests, lints, typechecks |
+| `release.yml` | push to `main` | Opens a Version PR when changesets are present; publishes to npm when that PR merges |
+
+The release workflow requires one repository secret to be configured in GitHub:
+- `NPM_TOKEN` — npm access token with publish rights (`GITHUB_TOKEN` is provided automatically)
 
 ## Changesets
 
