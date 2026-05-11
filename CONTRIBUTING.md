@@ -20,7 +20,7 @@ bash scripts/init.sh
 ```
 
 `scripts/init.sh` does the following:
-1. `mise install` — pins Node 22, Python 3.12, pnpm 9, uv 0.11.12 from `.mise.toml`
+1. `mise install` — pins Node 22, Python 3.12, pnpm, uv from `.mise.toml`
 2. `pnpm install` — installs turbo, biome, lefthook, changesets
 3. `pnpm lefthook install` — wires pre-commit hooks from `lefthook.yml`
 
@@ -28,10 +28,10 @@ bash scripts/init.sh
 
 ```bash
 # Build all packages
-pnpm turbo build
+pnpm build
 
 # Run all tests
-pnpm turbo test
+pnpm test
 
 # Lint and typecheck
 pnpm turbo lint typecheck
@@ -43,8 +43,28 @@ pnpm format
 ## Repository Structure
 
 ```
+packages/
+  core/                     — domain types, analyzers, validator, reporter, orchestrator
+    src/
+      domain/               — Violation, FunctionShape, errors, port interfaces
+      infrastructure/
+        analyzer/           — TreeSitterTypeScriptAnalyzer, FileCodeAnalyzer
+        config/             — CsentryConfigLoader
+        reporter/           — ConsoleReporter
+        scanner/            — ScanOrchestrator
+        spec/               — OpenApiSpecLoader, SchemaExtractor
+        validator/          — ContractValidator
+  cli/                      — csentry CLI
+    src/
+      bin.ts                — Commander entry point
+      commands/
+        check.ts            — runCheck logic (injectable deps for testing)
+
+examples/
+  petstore/                 — OpenAPI spec + TypeScript routes used as test fixtures
+
 scripts/
-  init.sh         — one-shot dev environment setup
+  init.sh                   — one-shot dev environment setup
 ```
 
 ## Pre-commit Hooks
@@ -52,7 +72,7 @@ scripts/
 `lefthook.yml` runs the following checks on every commit:
 
 | Hook | Glob | What it does |
-|------|------|-------------|
+|------|------|--------------|
 | `biome-check` | `*.{ts,tsx,js,json}` | Lint + format TypeScript/JSON, auto-fixes staged files |
 | `ty-check` | `*.py` | Type-check Python with `ty` |
 | `ruff-check` | `*.py` | Lint + format Python, auto-fixes staged files |
@@ -62,7 +82,7 @@ scripts/
 1. Create a feature branch from `main`
 2. Write a failing test first (TDD)
 3. Implement until the test passes
-4. Run `pnpm turbo test`
+4. Run `pnpm test`
 5. Add a changeset: `pnpm changeset`
 6. Open a pull request
 
@@ -82,7 +102,7 @@ pnpm changeset publish  # publish to npm (done by CI on version tag)
 <type>(<scope>): <subject>
 
 Types:  feat | fix | chore | ci | test | docs | refactor
-Scopes: core | repo
+Scopes: core | cli | repo
 ```
 
 ## Reporting Issues

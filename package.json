@@ -1,6 +1,7 @@
 {
   "name": "contractsentry",
   "private": true,
+  "packageManager": "pnpm@11.0.9",
   "scripts": {
     "build": "turbo build",
     "test": "turbo test",
