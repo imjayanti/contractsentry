@@ -15,3 +15,4 @@ export type { IConfigLoader, CsentryConfig } from "./domain/IConfigLoader.js";
 export { SchemaExtractor } from "./infrastructure/spec/SchemaExtractor.js";
 export { OpenApiSpecLoader } from "./infrastructure/spec/OpenApiSpecLoader.js";
 export { ContractValidator } from "./infrastructure/validator/ContractValidator.js";
+export { FileCodeAnalyzer } from "./infrastructure/analyzer/FileCodeAnalyzer.js";
