@@ -27,8 +27,6 @@ const schema = {
   },
 };
 
-// ── happy path ────────────────────────────────────────────────────────────────
-
 describe("ContractValidator — no violations", () => {
   it("returns empty array when all required fields are present", () => {
     expect(validator.validate(shape(), schema, "src/routes/users.ts")).toEqual(
@@ -82,8 +80,6 @@ describe("ContractValidator — no violations", () => {
     ).toEqual([]);
   });
 });
-
-// ── missing fields ────────────────────────────────────────────────────────────
 
 describe("ContractValidator — missing required fields", () => {
   it("emits one violation for a single missing field", () => {
@@ -150,8 +146,6 @@ describe("ContractValidator — missing required fields", () => {
   });
 });
 
-// ── suppression ───────────────────────────────────────────────────────────────
-
 describe("ContractValidator — suppression", () => {
   it("marks violations suppressed when shape is suppressed", () => {
     const violations = validator.validate(
@@ -177,8 +171,6 @@ describe("ContractValidator — suppression", () => {
   });
 });
 
-// ── isDynamic ─────────────────────────────────────────────────────────────────
-
 describe("ContractValidator — isDynamic", () => {
   it("returns empty array when isDynamic is true, even with missing fields", () => {
     expect(
@@ -200,8 +192,6 @@ describe("ContractValidator — isDynamic", () => {
     ).toEqual([]);
   });
 });
-
-// ── malformed schema.required ─────────────────────────────────────────────────
 
 describe("ContractValidator — malformed schema.required", () => {
   it("treats non-array required as no required fields", () => {
@@ -244,8 +234,6 @@ describe("ContractValidator — malformed schema.required", () => {
     expect(fields).toEqual(["email", "id"]);
   });
 });
-
-// ── prototype-shadowing fields ────────────────────────────────────────────────
 
 describe("ContractValidator — prototype-shadowing fields", () => {
   it("emits violation when required field shadows Object.prototype (e.g. hasOwnProperty)", () => {

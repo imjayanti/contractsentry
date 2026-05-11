@@ -11,8 +11,6 @@ async function loadFixture(): Promise<string> {
   return readFile(FIXTURE, "utf-8");
 }
 
-// ── route annotation extraction ───────────────────────────────────────────────
-
 describe("TreeSitterTypeScriptAnalyzer — route annotations", () => {
   it("extracts @route annotations from all annotated functions", async () => {
     const source = await loadFixture();
@@ -40,8 +38,6 @@ describe("TreeSitterTypeScriptAnalyzer — route annotations", () => {
   });
 });
 
-// ── suppression ───────────────────────────────────────────────────────────────
-
 describe("TreeSitterTypeScriptAnalyzer — suppression", () => {
   it("marks csentry-ignore functions as suppressed", async () => {
     const source = await loadFixture();
@@ -59,8 +55,6 @@ describe("TreeSitterTypeScriptAnalyzer — suppression", () => {
     expect(getUser?.suppressed).toBe(false);
   });
 });
-
-// ── return shape extraction ───────────────────────────────────────────────────
 
 describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
   it("extracts literal return shape from getUser", async () => {
@@ -107,8 +101,6 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
   });
 });
 
-// ── line numbers ─────────────────────────────────────────────────────────────
-
 describe("TreeSitterTypeScriptAnalyzer — line numbers", () => {
   it("reports 1-based line number for each function", async () => {
     const source = await loadFixture();
@@ -128,8 +120,6 @@ describe("TreeSitterTypeScriptAnalyzer — line numbers", () => {
     expect(getUser?.line).toBe(5);
   });
 });
-
-// ── function count ────────────────────────────────────────────────────────────
 
 describe("TreeSitterTypeScriptAnalyzer — function coverage", () => {
   it("finds all 4 exported functions in the fixture", async () => {
@@ -155,8 +145,6 @@ describe("TreeSitterTypeScriptAnalyzer — function coverage", () => {
     expect(analyzer.analyze(source)).toHaveLength(0);
   });
 });
-
-// ── arrow function variants ───────────────────────────────────────────────────
 
 describe("TreeSitterTypeScriptAnalyzer — arrow function variants", () => {
   it("handles arrow function with block body", () => {
@@ -195,8 +183,6 @@ describe("TreeSitterTypeScriptAnalyzer — arrow function variants", () => {
   });
 });
 
-// ── object spread handling ────────────────────────────────────────────────────
-
 describe("TreeSitterTypeScriptAnalyzer — object spread", () => {
   it("extracts only statically-known keys — spread elements are skipped", () => {
     const source =
@@ -214,8 +200,6 @@ describe("TreeSitterTypeScriptAnalyzer — object spread", () => {
     expect(shapes[0]?.returnShape).toEqual({});
   });
 });
-
-// ── export default ────────────────────────────────────────────────────────────
 
 describe("TreeSitterTypeScriptAnalyzer — export default", () => {
   it("captures export default function with a name", () => {

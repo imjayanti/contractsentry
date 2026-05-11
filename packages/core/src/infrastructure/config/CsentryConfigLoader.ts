@@ -25,11 +25,12 @@ export class CsentryConfigLoader implements IConfigLoader {
       throw err;
     }
 
-    const mod = (await jiti.import(configPath)) as { default?: unknown };
-    const config = mod.default ?? null;
+    const { default: defaultExport } = (await jiti.import(configPath)) as {
+      default?: unknown;
+    };
 
-    if (!isConfig(config)) return null;
+    if (!isConfig(defaultExport)) return null;
 
-    return config;
+    return defaultExport;
   }
 }

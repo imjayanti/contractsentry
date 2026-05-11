@@ -2,20 +2,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "../src/domain/ISpecLoader.js";
+import { OpenApiSpecLoader } from "../src/infrastructure/spec/OpenApiSpecLoader.js";
 import { SchemaExtractor } from "../src/infrastructure/spec/SchemaExtractor.js";
-import { SwaggerSpecLoader } from "../src/infrastructure/spec/SwaggerSpecLoader.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(__dirname, "fixtures", "simple.openapi.yaml");
 const FIXTURE_EXT = join(__dirname, "fixtures", "extended.openapi.yaml");
 
-// ── simple fixture ───────────────────────────────────────────────────────────
-
 describe("SchemaExtractor — simple fixture", () => {
   let schemas: Map<string, Record<string, unknown>>;
 
   beforeAll(async () => {
-    const doc = await new SwaggerSpecLoader().load(FIXTURE);
+    const doc = await new OpenApiSpecLoader().load(FIXTURE);
     schemas = new SchemaExtractor().extract(doc);
   });
 
@@ -69,13 +67,11 @@ describe("SchemaExtractor — simple fixture", () => {
   });
 });
 
-// ── extended fixture ─────────────────────────────────────────────────────────
-
 describe("SchemaExtractor — extended fixture", () => {
   let schemas: Map<string, Record<string, unknown>>;
 
   beforeAll(async () => {
-    const doc = await new SwaggerSpecLoader().load(FIXTURE_EXT);
+    const doc = await new OpenApiSpecLoader().load(FIXTURE_EXT);
     schemas = new SchemaExtractor().extract(doc);
   });
 
@@ -104,8 +100,6 @@ describe("SchemaExtractor — extended fixture", () => {
     expect(deleteKeys).toHaveLength(0);
   });
 });
-
-// ── edge cases ───────────────────────────────────────────────────────────────
 
 describe("SchemaExtractor — edge cases", () => {
   const extractor = new SchemaExtractor();

@@ -9,7 +9,7 @@ const { typescript } = require("tree-sitter-typescript") as {
   typescript: unknown;
 };
 
-const ROUTE_RE = /\/\/\s*@route\s+(\S+\s+\S+)/;
+const ROUTE_ANNOTATION_RE = /\/\/\s*@route\s+(\S+\s+\S+)/;
 
 export class TreeSitterTypeScriptAnalyzer {
   private readonly parser: Parser;
@@ -60,7 +60,7 @@ export class TreeSitterTypeScriptAnalyzer {
     let sib = node.previousNamedSibling;
     while (sib?.type === "comment") {
       const text = sib.text;
-      const match = ROUTE_RE.exec(text);
+      const match = ROUTE_ANNOTATION_RE.exec(text);
       if (match) endpointGuess = match[1].trim();
       if (text.includes("csentry-ignore")) suppressed = true;
       sib = sib.previousNamedSibling;
@@ -134,14 +134,12 @@ export class TreeSitterTypeScriptAnalyzer {
   private shapeFromArrowBody(body: SyntaxNode): Record<string, unknown> | null {
     if (body.type === "statement_block") return this.shapeFromBlock(body);
 
-    // Arrow body wrapped in parens: `() => ({ ... })` or `() => ([...])`
+    // `() => ({ ... })` and `() => ([...])` produce a parenthesized_expression node
     if (body.type === "parenthesized_expression") {
       const inner = body.namedChild(0);
       return inner ? this.shapeFromNode(inner) : null;
     }
 
-    // Bare object or array: `() => ({ ... })` would be parenthesized above;
-    // `() => [...]` reaches here as type "array"
     return this.shapeFromNode(body);
   }
 

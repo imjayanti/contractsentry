@@ -4,18 +4,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SpecLoadError } from "../src/domain/errors.js";
-import { SwaggerSpecLoader } from "../src/infrastructure/spec/SwaggerSpecLoader.js";
+import { OpenApiSpecLoader } from "../src/infrastructure/spec/OpenApiSpecLoader.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_30 = join(__dirname, "fixtures", "simple.openapi.yaml");
 const FIXTURE_SWAGGER2 = join(__dirname, "fixtures", "swagger2.yaml");
 
-describe("SwaggerSpecLoader", () => {
-  let loader: SwaggerSpecLoader;
+describe("OpenApiSpecLoader", () => {
+  let loader: OpenApiSpecLoader;
   let dir: string;
 
   beforeEach(async () => {
-    loader = new SwaggerSpecLoader();
+    loader = new OpenApiSpecLoader();
     dir = await mkdtemp(join(tmpdir(), "csentry-spec-test-"));
   });
 
@@ -59,7 +59,6 @@ describe("SwaggerSpecLoader", () => {
 
   it("resolves $ref schemas inline — no $ref strings remain", async () => {
     const doc = await loader.load(FIXTURE_30);
-    // Use vitest property matchers to avoid unsafe double-casts
     expect(doc.paths["/users/{id}"]?.get?.responses["200"]).toMatchObject({
       content: {
         "application/json": {
@@ -70,7 +69,6 @@ describe("SwaggerSpecLoader", () => {
         },
       },
     });
-    // Confirm $ref was resolved — no reference strings remain
     const response = doc.paths["/users/{id}"]?.get?.responses["200"] as Record<
       string,
       unknown
