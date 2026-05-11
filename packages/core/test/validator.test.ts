@@ -1,0 +1,270 @@
+import { describe, expect, it } from "vitest";
+import type { FunctionShape } from "../src/domain/FunctionShape.js";
+import { ContractValidator } from "../src/infrastructure/validator/ContractValidator.js";
+
+const validator = new ContractValidator();
+
+function shape(overrides: Partial<FunctionShape> = {}): FunctionShape {
+  return {
+    name: "getUser",
+    endpointGuess: "GET /users/{id}",
+    returnShape: { id: null, name: null, email: null },
+    paramShape: null,
+    line: 5,
+    suppressed: false,
+    isDynamic: false,
+    ...overrides,
+  };
+}
+
+const schema = {
+  type: "object",
+  required: ["id", "name", "email"],
+  properties: {
+    id: { type: "integer" },
+    name: { type: "string" },
+    email: { type: "string", format: "email" },
+  },
+};
+
+// ── happy path ────────────────────────────────────────────────────────────────
+
+describe("ContractValidator — no violations", () => {
+  it("returns empty array when all required fields are present", () => {
+    expect(validator.validate(shape(), schema, "src/routes/users.ts")).toEqual(
+      [],
+    );
+  });
+
+  it("returns empty array when schema has no required array", () => {
+    const noRequired = {
+      type: "object",
+      properties: { id: { type: "integer" } },
+    };
+    expect(
+      validator.validate(
+        shape({ returnShape: {} }),
+        noRequired,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("returns empty array when required is empty", () => {
+    const emptyRequired = { type: "object", required: [], properties: {} };
+    expect(
+      validator.validate(
+        shape({ returnShape: {} }),
+        emptyRequired,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("returns empty array when returnShape is null (dynamic return)", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: null }),
+        schema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("does not emit violations for extra fields not in spec", () => {
+    const extra = { ...shape().returnShape, extra: null };
+    expect(
+      validator.validate(
+        shape({ returnShape: extra }),
+        schema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+});
+
+// ── missing fields ────────────────────────────────────────────────────────────
+
+describe("ContractValidator — missing required fields", () => {
+  it("emits one violation for a single missing field", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: null, name: null } }),
+      schema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.field).toBe("email");
+  });
+
+  it("emits violations for all missing fields", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {} }),
+      schema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(3);
+    const fields = violations.map((v) => v.field);
+    expect(fields).toContain("id");
+    expect(fields).toContain("name");
+    expect(fields).toContain("email");
+  });
+
+  it("populates violation fields correctly", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: null, name: null }, line: 12 }),
+      schema,
+      "src/routes/users.ts",
+    );
+    expect(violations[0]).toMatchObject({
+      file: "src/routes/users.ts",
+      line: 12,
+      endpoint: "GET /users/{id}",
+      field: "email",
+      expected: "present",
+      found: "missing",
+      severity: "error",
+      suppressed: false,
+    });
+  });
+
+  it("uses endpointGuess as endpoint in violation", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {}, endpointGuess: "POST /items" }),
+      schema,
+      "src/routes/items.ts",
+    );
+    for (const v of violations) {
+      expect(v.endpoint).toBe("POST /items");
+    }
+  });
+
+  it("uses 'unknown' as endpoint when endpointGuess is null", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {}, endpointGuess: null }),
+      schema,
+      "src/routes/users.ts",
+    );
+    for (const v of violations) {
+      expect(v.endpoint).toBe("unknown");
+    }
+  });
+});
+
+// ── suppression ───────────────────────────────────────────────────────────────
+
+describe("ContractValidator — suppression", () => {
+  it("marks violations suppressed when shape is suppressed", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {}, suppressed: true }),
+      schema,
+      "src/routes/users.ts",
+    );
+    expect(violations.length).toBeGreaterThan(0);
+    for (const v of violations) {
+      expect(v.suppressed).toBe(true);
+    }
+  });
+
+  it("marks violations not suppressed when shape is not suppressed", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {} }),
+      schema,
+      "src/routes/users.ts",
+    );
+    for (const v of violations) {
+      expect(v.suppressed).toBe(false);
+    }
+  });
+});
+
+// ── isDynamic ─────────────────────────────────────────────────────────────────
+
+describe("ContractValidator — isDynamic", () => {
+  it("returns empty array when isDynamic is true, even with missing fields", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: {}, isDynamic: true }),
+        schema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("returns empty array when both isDynamic and returnShape is null", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: null, isDynamic: true }),
+        schema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+});
+
+// ── malformed schema.required ─────────────────────────────────────────────────
+
+describe("ContractValidator — malformed schema.required", () => {
+  it("treats non-array required as no required fields", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: {} }),
+        { required: true },
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("treats string required as no required fields", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: {} }),
+        { required: "id" },
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("skips non-string entries in required array", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {} }),
+      { required: [1, null, "email"] },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.field).toBe("email");
+  });
+
+  it("deduplicates repeated required fields — emits at most one violation per field", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {} }),
+      { required: ["email", "email", "id", "id"] },
+      "src/routes/users.ts",
+    );
+    const fields = violations.map((v) => v.field);
+    expect(fields).toEqual(["email", "id"]);
+  });
+});
+
+// ── prototype-shadowing fields ────────────────────────────────────────────────
+
+describe("ContractValidator — prototype-shadowing fields", () => {
+  it("emits violation when required field shadows Object.prototype (e.g. hasOwnProperty)", () => {
+    // 'hasOwnProperty' exists on Object.prototype; `in` would give a false negative
+    const violations = validator.validate(
+      shape({ returnShape: {} }),
+      { required: ["hasOwnProperty"] },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.field).toBe("hasOwnProperty");
+  });
+
+  it("does not emit violation when prototype-named field is explicitly present in returnShape", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { hasOwnProperty: null } }),
+      { required: ["hasOwnProperty"] },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(0);
+  });
+});
