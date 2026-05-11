@@ -1,6 +1,6 @@
 # ContractSentry
 
-[![CI](https://github.com/contractsentry/contractsentry/actions/workflows/ci.yml/badge.svg)](https://github.com/contractsentry/contractsentry/actions/workflows/ci.yml)
+[![CI](https://github.com/imjayanti/contractsentry/actions/workflows/ci.yml/badge.svg)](https://github.com/imjayanti/contractsentry/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@contractsentry/cli)](https://www.npmjs.com/package/@contractsentry/cli)
 
 > Catch OpenAPI contract drift at dev time — before it hits production.
@@ -132,7 +132,7 @@ Or with explicit options (no config file needed):
 # Prerequisites: mise (manages Node, Python, pnpm, uv)
 # Install mise: curl https://mise.run | sh
 
-git clone https://github.com/contractsentry/contractsentry
+git clone https://github.com/imjayanti/contractsentry
 cd contractsentry
 bash scripts/init.sh   # installs toolchain + wires git hooks
 

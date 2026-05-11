@@ -14,7 +14,7 @@ curl https://mise.run | sh
 ## Setup
 
 ```bash
-git clone https://github.com/contractsentry/contractsentry
+git clone https://github.com/imjayanti/contractsentry
 cd contractsentry
 bash scripts/init.sh
 ```
