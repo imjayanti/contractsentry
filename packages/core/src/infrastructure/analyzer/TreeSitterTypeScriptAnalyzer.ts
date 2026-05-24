@@ -11,6 +11,23 @@ const { typescript } = require("tree-sitter-typescript") as {
 
 const ROUTE_ANNOTATION_RE = /\/\/\s*@route\s+(\S+\s+\S+)/;
 
+type ShapeResult = {
+  returnShape: Record<string, unknown> | null;
+  isDynamic: boolean;
+};
+
+const EMPTY_SHAPE: ShapeResult = { returnShape: null, isDynamic: false };
+
+const DYNAMIC_NODE_TYPES = new Set([
+  "identifier",
+  "call_expression",
+  "member_expression",
+  "await_expression",
+  "ternary_expression",
+  "as_expression",
+  "new_expression",
+]);
+
 export class TreeSitterTypeScriptAnalyzer {
   private readonly parser: Parser;
 
@@ -78,16 +95,22 @@ export class TreeSitterTypeScriptAnalyzer {
     if (!nameNode) return null;
 
     const body = decl.childForFieldName("body");
-    const returnShape = body ? this.shapeFromBlock(body) : null;
+    const { returnShape, isDynamic } = body
+      ? this.shapeFromBlock(body)
+      : { returnShape: null, isDynamic: false };
+
+    const paramShape = this.paramShapeFromParams(
+      decl.childForFieldName("parameters"),
+    );
 
     return {
       name: nameNode.text,
       endpointGuess,
       returnShape,
-      paramShape: null,
+      paramShape,
       line: decl.startPosition.row + 1,
       suppressed,
-      isDynamic: false,
+      isDynamic,
     };
   }
 
@@ -108,39 +131,60 @@ export class TreeSitterTypeScriptAnalyzer {
     if (!value || value.type !== "arrow_function") return null;
 
     const body = value.childForFieldName("body");
-    const returnShape = body ? this.shapeFromArrowBody(body) : null;
+    const { returnShape, isDynamic } = body
+      ? this.shapeFromArrowBody(body)
+      : { returnShape: null, isDynamic: false };
+
+    // arrow_function exposes either "parameters" (formal_parameters) or
+    // "parameter" (single identifier, no parens: `x => ...`)
+    let paramShape = this.paramShapeFromParams(
+      value.childForFieldName("parameters"),
+    );
+    if (paramShape === null) {
+      const singleParam = value.childForFieldName("parameter");
+      if (singleParam?.type === "identifier") {
+        paramShape = { [singleParam.text]: null };
+      }
+    }
 
     return {
       name: nameNode.text,
       endpointGuess,
       returnShape,
-      paramShape: null,
+      paramShape,
       line: decl.startPosition.row + 1,
       suppressed,
-      isDynamic: false,
+      isDynamic,
     };
   }
 
-  private shapeFromBlock(body: SyntaxNode): Record<string, unknown> | null {
+  private nodeToShapeResult(node: SyntaxNode): ShapeResult {
+    const returnShape = this.shapeFromNode(node);
+    return returnShape !== null
+      ? { returnShape, isDynamic: false }
+      : { returnShape: null, isDynamic: DYNAMIC_NODE_TYPES.has(node.type) };
+  }
+
+  private shapeFromBlock(body: SyntaxNode): ShapeResult {
     for (const child of body.namedChildren) {
       if (child.type === "return_statement") {
         const returnValue = child.namedChild(0);
-        if (returnValue) return this.shapeFromNode(returnValue);
+        return returnValue ? this.nodeToShapeResult(returnValue) : EMPTY_SHAPE;
       }
     }
-    return null;
+    return EMPTY_SHAPE;
   }
 
-  private shapeFromArrowBody(body: SyntaxNode): Record<string, unknown> | null {
+  private shapeFromArrowBody(body: SyntaxNode): ShapeResult {
     if (body.type === "statement_block") return this.shapeFromBlock(body);
 
     // `() => ({ ... })` and `() => ([...])` produce a parenthesized_expression node
     if (body.type === "parenthesized_expression") {
       const inner = body.namedChild(0);
-      return inner ? this.shapeFromNode(inner) : null;
+      return inner ? this.nodeToShapeResult(inner) : EMPTY_SHAPE;
     }
 
-    return this.shapeFromNode(body);
+    return this.nodeToShapeResult(body);
   }
 
   private shapeFromNode(node: SyntaxNode): Record<string, unknown> | null {
@@ -166,5 +210,24 @@ export class TreeSitterTypeScriptAnalyzer {
       // spread_element is intentionally skipped — static shape is unknowable
     }
     return result;
+  }
+
+  private paramShapeFromParams(
+    params: SyntaxNode | null,
+  ): Record<string, unknown> | null {
+    if (!params || params.type !== "formal_parameters") return null;
+    const result: Record<string, unknown> = {};
+    for (const child of params.namedChildren) {
+      if (
+        child.type === "required_parameter" ||
+        child.type === "optional_parameter"
+      ) {
+        const pattern = child.childForFieldName("pattern");
+        if (pattern?.type === "identifier") {
+          result[pattern.text] = null;
+        }
+      }
+    }
+    return Object.keys(result).length > 0 ? result : null;
   }
 }

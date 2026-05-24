@@ -54,5 +54,7 @@ export async function runCheck(
   const violations = await orchestrator.scan({ specPath, filePaths });
   reporter.report(violations);
 
-  return violations.some((v) => !v.suppressed) ? 1 : 0;
+  return violations.some((v) => !v.suppressed && v.severity === "error")
+    ? 1
+    : 0;
 }

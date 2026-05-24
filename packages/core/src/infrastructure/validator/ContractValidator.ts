@@ -9,7 +9,24 @@ export class ContractValidator implements IValidator {
     file: string,
   ): Violation[] {
     if (shape.returnShape === null || shape.isDynamic) return [];
+    return this.checkFields(shape.returnShape, shape, schema, file);
+  }
 
+  validateRequest(
+    shape: FunctionShape,
+    schema: Record<string, unknown>,
+    file: string,
+  ): Violation[] {
+    if (shape.paramShape === null) return [];
+    return this.checkFields(shape.paramShape, shape, schema, file);
+  }
+
+  private checkFields(
+    shapeFields: Record<string, unknown>,
+    shape: FunctionShape,
+    schema: Record<string, unknown>,
+    file: string,
+  ): Violation[] {
     const required = Array.isArray(schema.required)
       ? [
           ...new Set(
@@ -20,7 +37,7 @@ export class ContractValidator implements IValidator {
     const violations: Violation[] = [];
 
     for (const field of required) {
-      if (!Object.hasOwn(shape.returnShape, field)) {
+      if (!Object.hasOwn(shapeFields, field)) {
         violations.push({
           file,
           line: shape.line,

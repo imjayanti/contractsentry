@@ -32,11 +32,32 @@ export class ScanOrchestrator {
     const violations: Violation[] = [];
     for (const shape of shapes.values()) {
       if (!shape.endpointGuess) continue;
+
+      if (shape.isDynamic) {
+        violations.push({
+          file,
+          line: shape.line,
+          endpoint: shape.endpointGuess,
+          field: "(return value)",
+          expected: "static object literal",
+          found: "dynamic expression",
+          severity: "warn",
+          suppressed: shape.suppressed,
+        });
+      }
+
       for (const schema of this.successSchemasFor(
         shape.endpointGuess,
         schemas,
       )) {
         violations.push(...this.validator.validate(shape, schema, file));
+      }
+
+      const requestSchema = this.requestSchemaFor(shape.endpointGuess, schemas);
+      if (requestSchema) {
+        violations.push(
+          ...this.validator.validateRequest(shape, requestSchema, file),
+        );
       }
     }
     return violations;
@@ -54,5 +75,12 @@ export class ScanOrchestrator {
       }
     }
     return result;
+  }
+
+  private requestSchemaFor(
+    endpointGuess: string,
+    schemas: Map<string, Record<string, unknown>>,
+  ): Record<string, unknown> | null {
+    return schemas.get(`${endpointGuess}:request`) ?? null;
   }
 }

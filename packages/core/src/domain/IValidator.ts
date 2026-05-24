@@ -7,4 +7,9 @@ export interface IValidator {
     schema: Record<string, unknown>,
     file: string,
   ): Violation[];
+  validateRequest(
+    shape: FunctionShape,
+    schema: Record<string, unknown>,
+    file: string,
+  ): Violation[];
 }

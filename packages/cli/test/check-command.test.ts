@@ -52,6 +52,31 @@ describe("runCheck — exit codes", () => {
     );
     expect(code).toBe(0);
   });
+
+  it("returns 0 when only warn violations are present (non-suppressed)", async () => {
+    const scan = vi
+      .fn()
+      .mockResolvedValue([violation({ severity: "warn", suppressed: false })]);
+    const code = await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      makeDeps({ orchestrator: { scan } }),
+    );
+    expect(code).toBe(0);
+  });
+
+  it("returns 1 when error violation is present alongside warn", async () => {
+    const scan = vi
+      .fn()
+      .mockResolvedValue([
+        violation({ severity: "warn" }),
+        violation({ severity: "error" }),
+      ]);
+    const code = await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      makeDeps({ orchestrator: { scan } }),
+    );
+    expect(code).toBe(1);
+  });
 });
 
 describe("runCheck — config and option resolution", () => {

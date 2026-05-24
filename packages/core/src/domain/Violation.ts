@@ -8,5 +8,5 @@ export interface Violation {
   expected: string;
   found: string;
   severity: Severity;
-  suppressed?: boolean;
+  suppressed: boolean;
 }

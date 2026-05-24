@@ -183,3 +183,196 @@ describe("ScanOrchestrator — edge cases", () => {
     ).rejects.toThrow(AnalysisError);
   });
 });
+
+describe("ScanOrchestrator — dynamic return warnings", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "csentry-dynamic-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it("emits warn violation for annotated function with dynamic return", async () => {
+    const file = join(dir, "dynamic.ts");
+    await writeFile(
+      file,
+      "// @route GET /users/{id}\nexport function getUser(id: number) { return buildUser(id); }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    const warn = violations.find((v) => v.severity === "warn");
+    expect(warn).toMatchObject({
+      endpoint: "GET /users/{id}",
+      field: "(return value)",
+      expected: "static object literal",
+      found: "dynamic expression",
+      severity: "warn",
+      suppressed: false,
+    });
+  });
+
+  it("does not emit warn when return is static", async () => {
+    const file = join(dir, "static.ts");
+    await writeFile(
+      file,
+      "// @route GET /users/{id}\nexport function getUser() { return { id: 1, name: 'x', email: 'a@b.com' }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations.some((v) => v.severity === "warn")).toBe(false);
+  });
+
+  it("does not emit warn for dynamic function without @route annotation", async () => {
+    const file = join(dir, "no-route.ts");
+    await writeFile(file, "export function helper() { return someVar; }");
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations.some((v) => v.severity === "warn")).toBe(false);
+  });
+
+  it("warn violation carries correct line number", async () => {
+    const file = join(dir, "line.ts");
+    await writeFile(
+      file,
+      "// @route GET /users/{id}\n// comment\nexport function getUser() { return someVar; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    const warn = violations.find((v) => v.severity === "warn");
+    expect(warn?.line).toBe(3);
+  });
+
+  it("warn violation is suppressed when function has csentry-ignore", async () => {
+    const file = join(dir, "suppressed.ts");
+    await writeFile(
+      file,
+      "// @route GET /users/{id}\n// csentry-ignore\nexport function getUser() { return someVar; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    const warn = violations.find((v) => v.severity === "warn");
+    expect(warn?.suppressed).toBe(true);
+  });
+
+  it("emits warn for dynamic return even when endpoint has no matching response schema", async () => {
+    const file = join(dir, "unmatched-dynamic.ts");
+    await writeFile(
+      file,
+      "// @route GET /nonexistent\nexport function f() { return buildData(); }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      severity: "warn",
+      field: "(return value)",
+      endpoint: "GET /nonexistent",
+    });
+  });
+});
+
+describe("ScanOrchestrator — request body validation", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "csentry-request-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it("emits error when a required request param is missing", async () => {
+    const file = join(dir, "missing-param.ts");
+    await writeFile(
+      file,
+      // createUser only accepts `name`, missing required `email`
+      "// @route POST /users\nexport function createUser(name: string) { return { id: 1, name, email: '' }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    const reqViolation = violations.find(
+      (v) =>
+        v.endpoint === "POST /users" &&
+        v.severity === "error" &&
+        v.field === "email",
+    );
+    expect(reqViolation).toBeDefined();
+  });
+
+  it("emits no request violation when all required params are present", async () => {
+    const file = join(dir, "full-params.ts");
+    await writeFile(
+      file,
+      "// @route POST /users\nexport function createUser(name: string, email: string) { return { id: 1, name, email }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("emits no request violation when endpoint has no request schema (GET)", async () => {
+    const file = join(dir, "get-full.ts");
+    await writeFile(
+      file,
+      "// @route GET /users/{id}\nexport function getUser(id: number) { return { id: 1, name: 'x', email: 'a@b.com' }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("emits no request violation when function has no params (paramShape is null)", async () => {
+    const file = join(dir, "no-params.ts");
+    await writeFile(
+      file,
+      "// @route POST /users\nexport function createUser() { return { id: 1, name: 'x', email: 'y' }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("emits both warn and request violation for dynamic return with missing request params", async () => {
+    const file = join(dir, "dynamic-missing-param.ts");
+    await writeFile(
+      file,
+      "// @route POST /users\nexport function createUser(name: string) { return buildUser(name); }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(
+      violations.some(
+        (v) => v.severity === "warn" && v.field === "(return value)",
+      ),
+    ).toBe(true);
+    expect(
+      violations.some((v) => v.severity === "error" && v.field === "email"),
+    ).toBe(true);
+  });
+});

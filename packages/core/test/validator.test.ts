@@ -235,6 +235,155 @@ describe("ContractValidator — malformed schema.required", () => {
   });
 });
 
+describe("ContractValidator — validateRequest", () => {
+  const requestSchema = {
+    type: "object",
+    required: ["name", "email"],
+    properties: {
+      name: { type: "string" },
+      email: { type: "string" },
+    },
+  };
+
+  it("returns empty array when all required params are present", () => {
+    expect(
+      validator.validateRequest(
+        shape({ paramShape: { name: null, email: null } }),
+        requestSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("returns empty array when paramShape is null", () => {
+    expect(
+      validator.validateRequest(
+        shape({ paramShape: null }),
+        requestSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits error for a missing required param", () => {
+    const violations = validator.validateRequest(
+      shape({ paramShape: { name: null } }),
+      requestSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.field).toBe("email");
+    expect(violations[0]?.severity).toBe("error");
+  });
+
+  it("emits errors for all missing required params", () => {
+    const violations = validator.validateRequest(
+      shape({ paramShape: {} }),
+      requestSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(2);
+    const fields = violations.map((v) => v.field);
+    expect(fields).toContain("name");
+    expect(fields).toContain("email");
+  });
+
+  it("populates violation fields correctly", () => {
+    const violations = validator.validateRequest(
+      shape({
+        paramShape: { name: null },
+        line: 16,
+        endpointGuess: "POST /users",
+      }),
+      requestSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations[0]).toMatchObject({
+      file: "src/routes/users.ts",
+      line: 16,
+      endpoint: "POST /users",
+      field: "email",
+      expected: "present",
+      found: "missing",
+      severity: "error",
+      suppressed: false,
+    });
+  });
+
+  it("ignores isDynamic — validates params regardless", () => {
+    const violations = validator.validateRequest(
+      shape({ paramShape: {}, isDynamic: true }),
+      requestSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(2);
+  });
+
+  it("marks request violations suppressed when shape is suppressed", () => {
+    const violations = validator.validateRequest(
+      shape({ paramShape: {}, suppressed: true }),
+      requestSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations.length).toBeGreaterThan(0);
+    for (const v of violations) {
+      expect(v.suppressed).toBe(true);
+    }
+  });
+
+  it("deduplicates repeated required fields", () => {
+    const violations = validator.validateRequest(
+      shape({ paramShape: {} }),
+      { required: ["name", "name", "email"] },
+      "src/routes/users.ts",
+    );
+    expect(violations.map((v) => v.field)).toEqual(["name", "email"]);
+  });
+
+  it("uses 'unknown' as endpoint when endpointGuess is null", () => {
+    const violations = validator.validateRequest(
+      shape({ paramShape: {}, endpointGuess: null }),
+      requestSchema,
+      "src/routes/users.ts",
+    );
+    for (const v of violations) {
+      expect(v.endpoint).toBe("unknown");
+    }
+  });
+});
+
+describe("ContractValidator — validateRequest malformed schema.required", () => {
+  it("treats non-array required as no required params", () => {
+    expect(
+      validator.validateRequest(
+        shape({ paramShape: {} }),
+        { required: true },
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("treats string required as no required params", () => {
+    expect(
+      validator.validateRequest(
+        shape({ paramShape: {} }),
+        { required: "name" },
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("skips non-string entries in required array", () => {
+    const violations = validator.validateRequest(
+      shape({ paramShape: {} }),
+      { required: [1, null, "email"] },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.field).toBe("email");
+  });
+});
+
 describe("ContractValidator — prototype-shadowing fields", () => {
   it("emits violation when required field shadows Object.prototype (e.g. hasOwnProperty)", () => {
     // 'hasOwnProperty' exists on Object.prototype; `in` would give a false negative

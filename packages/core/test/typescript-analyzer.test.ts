@@ -217,3 +217,159 @@ describe("TreeSitterTypeScriptAnalyzer — export default", () => {
     expect(analyzer.analyze(source)).toHaveLength(0);
   });
 });
+
+describe("TreeSitterTypeScriptAnalyzer — isDynamic detection", () => {
+  const analyzer = new TreeSitterTypeScriptAnalyzer();
+
+  it("sets isDynamic: false for static object literal return", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { id: 1 }; }",
+    );
+    expect(shapes[0]?.isDynamic).toBe(false);
+  });
+
+  it("sets isDynamic: true for identifier return", () => {
+    const shapes = analyzer.analyze("export function f() { return result; }");
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for call expression return", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return buildResponse(); }",
+    );
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for member expression return", () => {
+    const shapes = analyzer.analyze("export function f() { return obj.data; }");
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for await expression return", () => {
+    const shapes = analyzer.analyze(
+      "export const f = async () => { return await fetchUser(); };",
+    );
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for ternary expression return", () => {
+    const shapes = analyzer.analyze(
+      "export function f(x: boolean) { return x ? { a: 1 } : null; }",
+    );
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for new expression return", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return new Response(); }",
+    );
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for as expression return", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return data as User; }",
+    );
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for arrow function returning identifier", () => {
+    const shapes = analyzer.analyze("export const f = () => result;");
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for arrow function returning call expression", () => {
+    const shapes = analyzer.analyze("export const f = () => build();");
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: false and returnShape: null for function with no return", () => {
+    const shapes = analyzer.analyze("export function f() {}");
+    expect(shapes[0]?.isDynamic).toBe(false);
+    expect(shapes[0]?.returnShape).toBeNull();
+  });
+
+  it("sets isDynamic: false for primitive number return", () => {
+    const shapes = analyzer.analyze("export function f() { return 42; }");
+    expect(shapes[0]?.isDynamic).toBe(false);
+  });
+
+  it("sets isDynamic: false for primitive string return", () => {
+    const shapes = analyzer.analyze(`export const f = () => "hello";`);
+    expect(shapes[0]?.isDynamic).toBe(false);
+  });
+});
+
+describe("TreeSitterTypeScriptAnalyzer — isDynamic with petstore fixture", () => {
+  it("all petstore functions have isDynamic: false", async () => {
+    const source = await loadFixture();
+    const analyzer = new TreeSitterTypeScriptAnalyzer();
+    const shapes = analyzer.analyze(source);
+    for (const shape of shapes) {
+      expect(shape.isDynamic).toBe(false);
+    }
+  });
+});
+
+describe("TreeSitterTypeScriptAnalyzer — paramShape extraction", () => {
+  const analyzer = new TreeSitterTypeScriptAnalyzer();
+
+  it("extracts named params from a function declaration", () => {
+    const shapes = analyzer.analyze(
+      "export function createUser(name: string, email: string) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape).toEqual({ name: null, email: null });
+  });
+
+  it("extracts named params from an arrow function with formal parameters", () => {
+    const shapes = analyzer.analyze(
+      "export const f = (id: number, role: string) => ({ id });",
+    );
+    expect(shapes[0]?.paramShape).toEqual({ id: null, role: null });
+  });
+
+  it("returns null paramShape for zero-parameter function", () => {
+    const shapes = analyzer.analyze("export function f() { return {}; }");
+    expect(shapes[0]?.paramShape).toBeNull();
+  });
+
+  it("includes optional parameters in paramShape", () => {
+    const shapes = analyzer.analyze(
+      "export function f(name: string, tag?: string) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape).toEqual({ name: null, tag: null });
+  });
+
+  it("returns null paramShape for rest-only parameter", () => {
+    const shapes = analyzer.analyze(
+      "export function f(...args: string[]) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape).toBeNull();
+  });
+
+  it("extracts paramShape for single-param arrow without parentheses", () => {
+    const shapes = analyzer.analyze("export const f = x => x;");
+    expect(shapes[0]?.paramShape).toEqual({ x: null });
+  });
+
+  it("returns null paramShape for destructured parameter", () => {
+    const shapes = analyzer.analyze(
+      "export function f({ id }: { id: number }) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape).toBeNull();
+  });
+
+  it("populates paramShape for petstore createUser", async () => {
+    const source = await loadFixture();
+    const shapes = new TreeSitterTypeScriptAnalyzer().analyze(source);
+    const createUser = shapes.find((s) => s.name === "createUser");
+    expect(createUser?.paramShape).toEqual({ name: null, email: null });
+  });
+
+  it("populates paramShape for petstore getUser", async () => {
+    const source = await loadFixture();
+    const shapes = new TreeSitterTypeScriptAnalyzer().analyze(source);
+    const getUser = shapes.find((s) => s.name === "getUser");
+    expect(getUser?.paramShape).toEqual({ id: null });
+  });
+});
