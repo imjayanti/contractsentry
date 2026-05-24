@@ -352,6 +352,179 @@ describe("ContractValidator — validateRequest", () => {
   });
 });
 
+describe("ContractValidator — type validation", () => {
+  const typedSchema = {
+    type: "object",
+    required: ["id", "name", "active"],
+    properties: {
+      id: { type: "integer" },
+      name: { type: "string" },
+      active: { type: "boolean" },
+    },
+  };
+
+  it("emits warn for type mismatch — spec integer, found string", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "string", name: "string", active: "boolean" },
+      }),
+      typedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "id",
+      expected: "integer",
+      found: "string",
+      severity: "warn",
+    });
+  });
+
+  it("emits no violation when all types match", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "integer", name: "string", active: "boolean" },
+      }),
+      typedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("emits no type violation when inferred type is null (unknown)", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: null, name: null, active: null } }),
+      typedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("emits no type violation when spec has no properties", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "string", name: "string", active: "string" },
+      }),
+      { required: ["id", "name", "active"] },
+      "src/routes/users.ts",
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("treats integer as compatible with number", () => {
+    expect(
+      validator.validate(
+        shape({
+          returnShape: { id: "integer", name: "string", active: "boolean" },
+        }),
+        {
+          required: ["id", "name", "active"],
+          properties: {
+            id: { type: "number" },
+            name: { type: "string" },
+            active: { type: "boolean" },
+          },
+        },
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("treats number as compatible with integer", () => {
+    expect(
+      validator.validate(
+        shape({
+          returnShape: { id: "number", name: "string", active: "boolean" },
+        }),
+        typedSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("suppresses type violations when shape is suppressed", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "string", name: "string", active: "boolean" },
+        suppressed: true,
+      }),
+      typedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations.length).toBeGreaterThan(0);
+    for (const v of violations) {
+      expect(v.suppressed).toBe(true);
+    }
+  });
+
+  it("type violation uses warn severity", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "string", name: "string", active: "boolean" },
+      }),
+      typedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations[0]?.severity).toBe("warn");
+  });
+
+  it("emits warn for spec string, inferred boolean (clear incompatible types)", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "integer", name: "boolean", active: "boolean" },
+      }),
+      typedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "name",
+      expected: "string",
+      found: "boolean",
+      severity: "warn",
+    });
+  });
+
+  it("emits both a missing-field error and a type-mismatch warn in the same call", () => {
+    // id is present but wrong type; active is missing entirely
+    const violations = validator.validate(
+      shape({ returnShape: { id: "string", name: "string" } }),
+      typedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(2);
+    expect(
+      violations.some((v) => v.field === "id" && v.severity === "warn"),
+    ).toBe(true);
+    expect(
+      violations.some((v) => v.field === "active" && v.severity === "error"),
+    ).toBe(true);
+  });
+
+  it("uses first non-null entry when spec type is an OpenAPI nullable array", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "integer", name: "boolean", active: "boolean" },
+      }),
+      {
+        required: ["id", "name", "active"],
+        properties: {
+          id: { type: "integer" },
+          name: { type: ["string", "null"] },
+          active: { type: "boolean" },
+        },
+      },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "name",
+      expected: "string",
+      found: "boolean",
+    });
+  });
+});
+
 describe("ContractValidator — validateRequest malformed schema.required", () => {
   it("treats non-array required as no required params", () => {
     expect(

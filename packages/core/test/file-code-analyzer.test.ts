@@ -42,7 +42,7 @@ describe("FileCodeAnalyzer — petstore fixture", () => {
     const shapes = await analyzer.analyze(FIXTURE);
     expect(shapes.get("getUser")?.returnShape).toEqual({
       id: null,
-      name: null,
+      name: "string",
     });
   });
 

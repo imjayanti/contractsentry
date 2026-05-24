@@ -1,8 +1,8 @@
 export interface FunctionShape {
   name: string;
   endpointGuess: string | null;
-  returnShape: Record<string, unknown> | null;
-  paramShape: Record<string, unknown> | null;
+  returnShape: Record<string, string | null> | null;
+  paramShape: Record<string, string | null> | null;
   line: number;
   suppressed: boolean;
   isDynamic: boolean;

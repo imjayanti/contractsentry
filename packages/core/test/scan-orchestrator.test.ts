@@ -25,8 +25,8 @@ describe("ScanOrchestrator — petstore integration", () => {
     });
   });
 
-  it("returns 2 violations for the petstore fixture", () => {
-    expect(violations).toHaveLength(2);
+  it("returns 3 violations for the petstore fixture", () => {
+    expect(violations).toHaveLength(3);
   });
 
   it("detects missing email field on getUser", () => {
@@ -43,11 +43,27 @@ describe("ScanOrchestrator — petstore integration", () => {
   });
 
   it("detects missing email field on createUser", () => {
-    const v = violations.find((v) => v.endpoint === "POST /users");
+    const v = violations.find(
+      (v) => v.endpoint === "POST /users" && v.field === "email",
+    );
     expect(v).toMatchObject({
       endpoint: "POST /users",
       field: "email",
       severity: "error",
+    });
+  });
+
+  it("detects id type drift on createUser — id is string but spec requires integer", () => {
+    const v = violations.find(
+      (v) => v.endpoint === "POST /users" && v.field === "id",
+    );
+    expect(v).toMatchObject({
+      endpoint: "POST /users",
+      field: "id",
+      expected: "integer",
+      found: "string",
+      severity: "warn",
+      suppressed: false,
     });
   });
 
@@ -354,6 +370,21 @@ describe("ScanOrchestrator — request body validation", () => {
       filePaths: [file],
     });
     expect(violations).toHaveLength(0);
+  });
+
+  it("emits request violation even when isDynamic is true (response skipped but params checked)", async () => {
+    const file = join(dir, "dynamic-with-params.ts");
+    await writeFile(
+      file,
+      "// @route POST /users\nexport function createUser(name: string) { return buildUser(name); }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(
+      violations.some((v) => v.severity === "error" && v.field === "email"),
+    ).toBe(true);
   });
 
   it("emits both warn and request violation for dynamic return with missing request params", async () => {

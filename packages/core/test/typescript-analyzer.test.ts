@@ -62,7 +62,7 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
     const getUser = shapes.find((s) => s.name === "getUser");
-    expect(getUser?.returnShape).toEqual({ id: null, name: null });
+    expect(getUser?.returnShape).toEqual({ id: null, name: "string" });
   });
 
   it("extracts literal return shape from createUser — detects type drift (id is string)", async () => {
@@ -70,7 +70,7 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
     const createUser = shapes.find((s) => s.name === "createUser");
-    expect(createUser?.returnShape).toMatchObject({ id: null, name: null });
+    expect(createUser?.returnShape).toMatchObject({ id: "string", name: null });
   });
 
   it("extracts array return shape from listUsers", async () => {
@@ -79,9 +79,9 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
     const shapes = analyzer.analyze(source);
     const listUsers = shapes.find((s) => s.name === "listUsers");
     expect(listUsers?.returnShape).toMatchObject({
-      id: null,
-      name: null,
-      email: null,
+      id: "integer",
+      name: "string",
+      email: "string",
     });
   });
 
@@ -97,7 +97,7 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
     const source = `export const getItem = () => ({ id: 1, title: "thing" });`;
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
-    expect(shapes[0]?.returnShape).toEqual({ id: null, title: null });
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer", title: "string" });
   });
 });
 
@@ -151,21 +151,21 @@ describe("TreeSitterTypeScriptAnalyzer — arrow function variants", () => {
     const source = `export const fn = () => { return { id: 1, name: "x" }; };`;
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
-    expect(shapes[0]?.returnShape).toEqual({ id: null, name: null });
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer", name: "string" });
   });
 
   it("handles arrow returning array without parentheses", () => {
     const source = `export const fn = () => [{ id: 1, email: "a@b.com" }];`;
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
-    expect(shapes[0]?.returnShape).toEqual({ id: null, email: null });
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer", email: "string" });
   });
 
   it("handles async arrow function returning an object", () => {
     const source = `export const fn = async () => ({ status: "ok" });`;
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
-    expect(shapes[0]?.returnShape).toEqual({ status: null });
+    expect(shapes[0]?.returnShape).toEqual({ status: "string" });
   });
 
   it("returns null for arrow returning a primitive", () => {
@@ -190,7 +190,7 @@ describe("TreeSitterTypeScriptAnalyzer — object spread", () => {
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
     // spread_element is intentionally skipped; only 'id' is known statically
-    expect(shapes[0]?.returnShape).toEqual({ id: null });
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
   });
 
   it("returns empty shape for all-spread return", () => {
@@ -215,6 +215,122 @@ describe("TreeSitterTypeScriptAnalyzer — export default", () => {
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     // anonymous function has no name node — fromFunctionDecl returns null
     expect(analyzer.analyze(source)).toHaveLength(0);
+  });
+});
+
+describe("TreeSitterTypeScriptAnalyzer — value type extraction", () => {
+  const analyzer = new TreeSitterTypeScriptAnalyzer();
+
+  it("extracts integer type from a whole number literal", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { count: 42 }; }",
+    );
+    expect(shapes[0]?.returnShape?.count).toBe("integer");
+  });
+
+  it("extracts number type from a float literal", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { ratio: 3.14 }; }",
+    );
+    expect(shapes[0]?.returnShape?.ratio).toBe("number");
+  });
+
+  it("extracts string type from a string literal", () => {
+    const shapes = analyzer.analyze(
+      `export function f() { return { label: "hello" }; }`,
+    );
+    expect(shapes[0]?.returnShape?.label).toBe("string");
+  });
+
+  it("extracts boolean type from true literal", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { active: true }; }",
+    );
+    expect(shapes[0]?.returnShape?.active).toBe("boolean");
+  });
+
+  it("extracts boolean type from false literal", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { active: false }; }",
+    );
+    expect(shapes[0]?.returnShape?.active).toBe("boolean");
+  });
+
+  it("returns null type for shorthand property (value unknown)", () => {
+    const shapes = analyzer.analyze("export function f() { return { id }; }");
+    expect(shapes[0]?.returnShape?.id).toBeNull();
+  });
+
+  it("returns null type for identifier value (runtime value unknown)", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { id: userId }; }",
+    );
+    expect(shapes[0]?.returnShape?.id).toBeNull();
+  });
+
+  it("extracts integer type from a negative integer literal", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { offset: -1 }; }",
+    );
+    expect(shapes[0]?.returnShape?.offset).toBe("integer");
+  });
+
+  it("extracts number type from a negative float literal", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { delta: -3.14 }; }",
+    );
+    expect(shapes[0]?.returnShape?.delta).toBe("number");
+  });
+});
+
+describe("TreeSitterTypeScriptAnalyzer — annotation type extraction", () => {
+  const analyzer = new TreeSitterTypeScriptAnalyzer();
+
+  it("extracts string annotation type", () => {
+    const shapes = analyzer.analyze(
+      "export function f(name: string) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape?.name).toBe("string");
+  });
+
+  it("extracts number annotation type", () => {
+    const shapes = analyzer.analyze(
+      "export function f(count: number) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape?.count).toBe("number");
+  });
+
+  it("extracts boolean annotation type", () => {
+    const shapes = analyzer.analyze(
+      "export function f(active: boolean) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape?.active).toBe("boolean");
+  });
+
+  it("returns null type for unannotated param", () => {
+    const shapes = analyzer.analyze("export const f = x => x;");
+    expect(shapes[0]?.paramShape?.x).toBeNull();
+  });
+
+  it("returns null type for complex type annotation", () => {
+    const shapes = analyzer.analyze(
+      "export function f(user: UserDto) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape?.user).toBeNull();
+  });
+
+  it("extracts array type from array annotation", () => {
+    const shapes = analyzer.analyze(
+      "export function f(tags: string[]) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape?.tags).toBe("array");
+  });
+
+  it("extracts array type from generic Array<T> annotation", () => {
+    const shapes = analyzer.analyze(
+      "export function f(items: Array<string>) { return {}; }",
+    );
+    expect(shapes[0]?.paramShape?.items).toBe("array");
   });
 });
 
@@ -318,14 +434,14 @@ describe("TreeSitterTypeScriptAnalyzer — paramShape extraction", () => {
     const shapes = analyzer.analyze(
       "export function createUser(name: string, email: string) { return {}; }",
     );
-    expect(shapes[0]?.paramShape).toEqual({ name: null, email: null });
+    expect(shapes[0]?.paramShape).toEqual({ name: "string", email: "string" });
   });
 
   it("extracts named params from an arrow function with formal parameters", () => {
     const shapes = analyzer.analyze(
       "export const f = (id: number, role: string) => ({ id });",
     );
-    expect(shapes[0]?.paramShape).toEqual({ id: null, role: null });
+    expect(shapes[0]?.paramShape).toEqual({ id: "number", role: "string" });
   });
 
   it("returns null paramShape for zero-parameter function", () => {
@@ -337,7 +453,7 @@ describe("TreeSitterTypeScriptAnalyzer — paramShape extraction", () => {
     const shapes = analyzer.analyze(
       "export function f(name: string, tag?: string) { return {}; }",
     );
-    expect(shapes[0]?.paramShape).toEqual({ name: null, tag: null });
+    expect(shapes[0]?.paramShape).toEqual({ name: "string", tag: "string" });
   });
 
   it("returns null paramShape for rest-only parameter", () => {
@@ -363,13 +479,13 @@ describe("TreeSitterTypeScriptAnalyzer — paramShape extraction", () => {
     const source = await loadFixture();
     const shapes = new TreeSitterTypeScriptAnalyzer().analyze(source);
     const createUser = shapes.find((s) => s.name === "createUser");
-    expect(createUser?.paramShape).toEqual({ name: null, email: null });
+    expect(createUser?.paramShape).toEqual({ name: "string", email: "string" });
   });
 
   it("populates paramShape for petstore getUser", async () => {
     const source = await loadFixture();
     const shapes = new TreeSitterTypeScriptAnalyzer().analyze(source);
     const getUser = shapes.find((s) => s.name === "getUser");
-    expect(getUser?.paramShape).toEqual({ id: null });
+    expect(getUser?.paramShape).toEqual({ id: "number" });
   });
 });

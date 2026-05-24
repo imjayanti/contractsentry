@@ -22,7 +22,7 @@ export class ContractValidator implements IValidator {
   }
 
   private checkFields(
-    shapeFields: Record<string, unknown>,
+    shapeFields: Record<string, string | null>,
     shape: FunctionShape,
     schema: Record<string, unknown>,
     file: string,
@@ -48,9 +48,55 @@ export class ContractValidator implements IValidator {
           severity: "error",
           suppressed: shape.suppressed,
         });
+      } else {
+        const inferredType = shapeFields[field];
+        const specType = this.specTypeFor(schema, field);
+        if (
+          inferredType !== null &&
+          specType !== null &&
+          !this.typesCompatible(inferredType, specType)
+        ) {
+          violations.push({
+            file,
+            line: shape.line,
+            endpoint: shape.endpointGuess ?? "unknown",
+            field,
+            expected: specType,
+            found: inferredType,
+            severity: "warn",
+            suppressed: shape.suppressed,
+          });
+        }
       }
     }
 
     return violations;
+  }
+
+  private specTypeFor(
+    schema: Record<string, unknown>,
+    field: string,
+  ): string | null {
+    const { properties } = schema;
+    if (typeof properties !== "object" || properties === null) return null;
+    const fieldSchema = (properties as Record<string, unknown>)[field];
+    if (typeof fieldSchema !== "object" || fieldSchema === null) return null;
+    const { type } = fieldSchema as Record<string, unknown>;
+    if (typeof type === "string") return type;
+    // OpenAPI 3.1 allows `type: ["string", "null"]` for nullable fields — use first non-null entry
+    if (Array.isArray(type)) {
+      const primary = type.find(
+        (t): t is string => typeof t === "string" && t !== "null",
+      );
+      return primary ?? null;
+    }
+    return null;
+  }
+
+  private typesCompatible(inferred: string, spec: string): boolean {
+    if (inferred === spec) return true;
+    // integer is a valid number — treat numeric types as interchangeable
+    const numeric = new Set(["integer", "number"]);
+    return numeric.has(inferred) && numeric.has(spec);
   }
 }

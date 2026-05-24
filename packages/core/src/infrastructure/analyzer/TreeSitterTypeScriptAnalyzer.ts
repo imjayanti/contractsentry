@@ -12,7 +12,7 @@ const { typescript } = require("tree-sitter-typescript") as {
 const ROUTE_ANNOTATION_RE = /\/\/\s*@route\s+(\S+\s+\S+)/;
 
 type ShapeResult = {
-  returnShape: Record<string, unknown> | null;
+  returnShape: Record<string, string | null> | null;
   isDynamic: boolean;
 };
 
@@ -187,7 +187,9 @@ export class TreeSitterTypeScriptAnalyzer {
     return this.nodeToShapeResult(body);
   }
 
-  private shapeFromNode(node: SyntaxNode): Record<string, unknown> | null {
+  private shapeFromNode(
+    node: SyntaxNode,
+  ): Record<string, string | null> | null {
     if (node.type === "object") return this.keysFromObject(node);
 
     if (node.type === "array") {
@@ -198,12 +200,14 @@ export class TreeSitterTypeScriptAnalyzer {
     return null;
   }
 
-  private keysFromObject(obj: SyntaxNode): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
+  private keysFromObject(obj: SyntaxNode): Record<string, string | null> {
+    const result: Record<string, string | null> = {};
     for (const child of obj.namedChildren) {
       if (child.type === "pair") {
         const key = child.childForFieldName("key");
-        if (key) result[key.text] = null;
+        const value = child.childForFieldName("value");
+        if (key)
+          result[key.text] = value ? this.typeFromValueNode(value) : null;
       } else if (child.type === "shorthand_property_identifier") {
         result[child.text] = null;
       }
@@ -212,11 +216,37 @@ export class TreeSitterTypeScriptAnalyzer {
     return result;
   }
 
+  private typeFromValueNode(node: SyntaxNode): string | null {
+    switch (node.type) {
+      case "number":
+        return Number.isInteger(Number(node.text)) ? "integer" : "number";
+      case "unary_expression": {
+        // handles negative numeric literals: -1, -3.14
+        const num = Number(node.text);
+        if (!Number.isNaN(num)) {
+          return Number.isInteger(num) ? "integer" : "number";
+        }
+        return null;
+      }
+      case "string":
+        return "string";
+      case "true":
+      case "false":
+        return "boolean";
+      case "object":
+        return "object";
+      case "array":
+        return "array";
+      default:
+        return null;
+    }
+  }
+
   private paramShapeFromParams(
     params: SyntaxNode | null,
-  ): Record<string, unknown> | null {
+  ): Record<string, string | null> | null {
     if (!params || params.type !== "formal_parameters") return null;
-    const result: Record<string, unknown> = {};
+    const result: Record<string, string | null> = {};
     for (const child of params.namedChildren) {
       if (
         child.type === "required_parameter" ||
@@ -224,10 +254,37 @@ export class TreeSitterTypeScriptAnalyzer {
       ) {
         const pattern = child.childForFieldName("pattern");
         if (pattern?.type === "identifier") {
-          result[pattern.text] = null;
+          const typeAnnotation = child.childForFieldName("type");
+          result[pattern.text] = typeAnnotation
+            ? this.typeFromTypeAnnotation(typeAnnotation)
+            : null;
         }
       }
     }
     return Object.keys(result).length > 0 ? result : null;
+  }
+
+  private typeFromTypeAnnotation(annotation: SyntaxNode): string | null {
+    const typeNode = annotation.namedChild(0);
+    if (!typeNode) return null;
+    switch (typeNode.type) {
+      case "predefined_type":
+        switch (typeNode.text) {
+          case "string":
+            return "string";
+          case "number":
+            return "number";
+          case "boolean":
+            return "boolean";
+          default:
+            return null;
+        }
+      case "array_type":
+        return "array";
+      case "generic_type":
+        return typeNode.text.startsWith("Array") ? "array" : null;
+      default:
+        return null;
+    }
   }
 }
