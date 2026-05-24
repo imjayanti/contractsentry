@@ -25,7 +25,7 @@ const violations = await orchestrator.scan({
 
 reporter.report(violations);
 
-if (violations.some((v) => !v.suppressed)) {
+if (violations.some((v) => !v.suppressed && v.severity === "error")) {
   process.exit(1);
 }
 ```
@@ -36,12 +36,12 @@ if (violations.some((v) => !v.suppressed)) {
 
 | Class | Description |
 |-------|-------------|
-| `ScanOrchestrator` | Loads spec, analyses files, validates shapes, returns violations |
+| `ScanOrchestrator` | Loads spec, analyses files, validates shapes and request params, returns violations |
 | `ConsoleReporter` | Prints violations to stdout with a summary line |
 | `FileCodeAnalyzer` | Analyses a TypeScript file and extracts function shapes |
-| `ContractValidator` | Validates a function shape against an OpenAPI schema |
+| `ContractValidator` | Validates a function's return shape or request params against an OpenAPI schema |
 | `OpenApiSpecLoader` | Loads and parses an OpenAPI 3.x spec (YAML or JSON) |
-| `SchemaExtractor` | Extracts per-endpoint 2xx response schemas from a parsed spec |
+| `SchemaExtractor` | Extracts per-endpoint 2xx response schemas and request body schemas from a parsed spec |
 | `CsentryConfigLoader` | Loads `csentry.config.ts` from a directory |
 
 ### Error classes
@@ -55,8 +55,8 @@ if (violations.some((v) => !v.suppressed)) {
 
 | Type | Description |
 |------|-------------|
-| `Violation` | A single contract violation with file, line, endpoint, and field |
-| `FunctionShape` | The extracted return shape and metadata for a function |
+| `Violation` | A single contract violation with file, line, endpoint, field, and severity (`error` or `warn`) |
+| `FunctionShape` | The extracted return shape, parameter shape, dynamic flag, and metadata for a function |
 | `CsentryConfig` | Shape of `csentry.config.ts` |
 | `ScanInput` | Input to `ScanOrchestrator.scan()` |
 

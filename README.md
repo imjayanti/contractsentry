@@ -5,7 +5,7 @@
 
 > Catch OpenAPI contract drift at dev time — before it hits production.
 
-AI coding tools (Copilot, Cursor, Claude Code) generate code that silently drifts from your OpenAPI contracts. ContractSentry is an open-source CLI that validates your TypeScript return shapes against your spec and fails CI when drift is detected.
+AI coding tools (Copilot, Cursor, Claude Code) generate code that silently drifts from your OpenAPI contracts. ContractSentry is an open-source CLI that validates your TypeScript return shapes and request parameters against your spec and fails CI when drift is detected.
 
 ---
 
@@ -61,9 +61,23 @@ ContractSentry reads `// @route <METHOD> <PATH>` comments to map a function to a
 export function getUser(id: number) {
   return { id, name: "Alice" }; // ← missing `email` — spec requires it
 }
+
+// @route POST /users
+export function createUser(name: string) { // ← missing `email` param — requestBody requires it
+  return { id: 1, name, email: "" };
+}
 ```
 
-To opt a specific function out of validation, add `// csentry-ignore` on the line before the function:
+Functions that return a non-static expression (a variable, function call, etc.) receive a `warn` instead of being skipped silently:
+
+```typescript
+// @route GET /users/{id}
+export function getUser(id: number) {
+  return buildUser(id); // ← warn: dynamic expression, cannot analyse statically
+}
+```
+
+To opt a specific function out of validation entirely, add `// csentry-ignore` on the line before the function:
 
 ```typescript
 // csentry-ignore
@@ -72,11 +86,19 @@ export function deleteUser(id: number) {
 }
 ```
 
+### What it checks
+
+| Check | Severity | Description |
+|-------|----------|-------------|
+| Missing response field | `error` | A required field from the 2xx response schema is absent from the return shape |
+| Missing request param | `error` | A required field from the `requestBody` schema is absent from the function's parameters |
+| Dynamic return | `warn` | A `@route`-annotated function returns a non-static expression (call, identifier, etc.) — ContractSentry cannot analyse it statically |
+
 ### Output
 
 ```
-src/routes/users.ts:5  error  GET /users/{id}  field "email" expected present, found missing
-src/routes/users.ts:18  error  POST /users  field "email" expected present, found missing
+src/routes/users.ts:5   warn   GET /users/{id}  field "(return value)" expected static object literal, found dynamic expression
+src/routes/users.ts:12  error  POST /users      field "email" expected present, found missing
 
 Found 2 violations
 ```
@@ -87,8 +109,8 @@ A clean scan produces no output and exits `0`.
 
 | Code | Meaning |
 |------|---------|
-| `0` | No violations (or all suppressed) |
-| `1` | One or more contract violations |
+| `0` | No `error`-severity violations (warnings do not trigger a non-zero exit) |
+| `1` | One or more `error`-severity violations |
 | `2` | Unexpected error (missing spec, config syntax error, etc.) |
 
 ---

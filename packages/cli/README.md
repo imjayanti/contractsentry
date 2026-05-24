@@ -2,7 +2,7 @@
 
 > Catch OpenAPI contract drift at dev time — before it hits production.
 
-Validates TypeScript function return shapes against your OpenAPI spec and fails CI when drift is detected.
+Validates TypeScript function return shapes and request parameters against your OpenAPI spec and fails CI when drift is detected.
 
 ## Installation
 
@@ -41,9 +41,23 @@ Add `// @route <METHOD> <PATH>` above a function to map it to an OpenAPI endpoin
 export function getUser(id: number) {
   return { id, name: "Alice" }; // ← missing `email` — spec requires it
 }
+
+// @route POST /users
+export function createUser(name: string) { // ← missing `email` param — requestBody requires it
+  return { id: 1, name, email: "" };
+}
 ```
 
-Opt a function out of validation with `// csentry-ignore`:
+Functions that return a non-static expression receive a `warn` rather than being skipped silently:
+
+```typescript
+// @route GET /users/{id}
+export function getUser(id: number) {
+  return buildUser(id); // ← warn: dynamic expression, cannot analyse statically
+}
+```
+
+Opt a function out of validation entirely with `// csentry-ignore`:
 
 ```typescript
 // csentry-ignore
@@ -55,9 +69,10 @@ export function deleteUser(id: number) {
 ## Output
 
 ```
-src/routes/users.ts:5  error  GET /users/{id}  field "email" expected present, found missing
+src/routes/users.ts:5   warn   GET /users/{id}  field "(return value)" expected static object literal, found dynamic expression
+src/routes/users.ts:12  error  POST /users      field "email" expected present, found missing
 
-Found 1 violation
+Found 2 violations
 ```
 
 A clean scan produces no output and exits `0`.
@@ -66,8 +81,8 @@ A clean scan produces no output and exits `0`.
 
 | Code | Meaning |
 |------|---------|
-| `0` | No violations (or all suppressed) |
-| `1` | One or more contract violations |
+| `0` | No `error`-severity violations (warnings do not trigger a non-zero exit) |
+| `1` | One or more `error`-severity violations |
 | `2` | Unexpected error (missing spec, bad config, etc.) |
 
 ## GitHub Actions
