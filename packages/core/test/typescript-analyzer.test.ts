@@ -636,3 +636,179 @@ describe("TreeSitterTypeScriptAnalyzer — paramShape extraction", () => {
     expect(getUser?.paramShape).toEqual({ id: "number" });
   });
 });
+
+describe("TreeSitterTypeScriptAnalyzer — nested block returns", () => {
+  const analyzer = new TreeSitterTypeScriptAnalyzer();
+
+  it("finds return inside if branch when there is no top-level return", () => {
+    const shapes = analyzer.analyze(
+      "export function f(x: boolean) { if (x) { return { id: 1 }; } }",
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+    expect(shapes[0]?.isDynamic).toBe(false);
+  });
+
+  it("finds return inside if-else — takes the last static shape", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f(x: boolean) {",
+        "  if (x) { return { id: 1 }; }",
+        "  else { return { id: 2 }; }",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+  });
+
+  it("takes the last static return across multiple top-level branches", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f(cond: boolean) {",
+        "  if (cond) return { kind: 'a', id: 1 };",
+        "  return { kind: 'b', id: 2 };",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ kind: "'b'", id: "integer" });
+  });
+
+  it("finds return inside switch case", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f(s: string) {",
+        "  switch (s) {",
+        "    case 'a': return { type: 'alpha' };",
+        "    default: return { type: 'other' };",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ type: "'other'" });
+  });
+
+  it("finds return inside try block", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f() {",
+        "  try { return { id: 1 }; }",
+        "  catch (e) { return {}; }",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+  });
+
+  it("sets isDynamic when only nested returns are dynamic", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f() {",
+        "  if (cond) { return buildResult(); }",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toBeNull();
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("prefers last static return even when some returns are dynamic", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f(cond: boolean) {",
+        "  if (cond) return fetchUser();",
+        "  return { id: 1, name: 'Alice' };",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer", name: "'Alice'" });
+    expect(shapes[0]?.isDynamic).toBe(false);
+  });
+
+  it("does not collect returns from a nested arrow function", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f() {",
+        "  const inner = () => ({ id: 99 });",
+        "  return { id: 1 };",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+  });
+
+  it("does not collect returns from a nested named function expression", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f() {",
+        "  const helper = function() { return { inner: 1 }; };",
+        "  return { id: 1 };",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+  });
+
+  it("handles deeply nested returns (if inside if)", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f(a: boolean, b: boolean) {",
+        "  if (a) {",
+        "    if (b) { return { deep: true }; }",
+        "  }",
+        "  return { deep: false };",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ deep: "boolean" });
+  });
+
+  it("returns EMPTY_SHAPE when no return statements exist anywhere in block", () => {
+    const shapes = analyzer.analyze(
+      ["export function f() {", "  const x = 1;", "}"].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toBeNull();
+    expect(shapes[0]?.isDynamic).toBe(false);
+  });
+
+  it("bare return; contributes nothing — treated as no shape, not dynamic", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f(x: boolean) {",
+        "  if (!x) return;",
+        "  return { id: 1 };",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+    expect(shapes[0]?.isDynamic).toBe(false);
+  });
+
+  it("return null; contributes nothing — null literal is not a shape", () => {
+    const shapes = analyzer.analyze(
+      ["export function f() {", "  return null;", "}"].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toBeNull();
+    expect(shapes[0]?.isDynamic).toBe(false);
+  });
+
+  it("finds return inside while loop body", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f(items: string[]) {",
+        "  while (items.length) { return { id: 1 }; }",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+  });
+
+  it("finds return inside for...of loop body", () => {
+    const shapes = analyzer.analyze(
+      [
+        "export function f(items: string[]) {",
+        "  for (const x of items) { return { id: 1 }; }",
+        "}",
+      ].join("\n"),
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+  });
+});

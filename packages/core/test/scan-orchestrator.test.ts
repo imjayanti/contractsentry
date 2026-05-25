@@ -1011,3 +1011,107 @@ describe("ScanOrchestrator — enum validation", () => {
     });
   });
 });
+
+describe("ScanOrchestrator — nested block return analysis", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "csentry-nested-return-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it("detects missing field when all returns are inside if-else branches", async () => {
+    const file = join(dir, "if-else.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser(cond: boolean) {",
+        "  if (cond) { return { id: 1, name: 'Alice' }; }",
+        "  else { return { id: 2, name: 'Bob' }; }",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "email",
+      expected: "present",
+      found: "missing",
+      severity: "error",
+    });
+  });
+
+  it("detects missing field when the only return is inside a switch case", async () => {
+    const file = join(dir, "switch.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser(type: string) {",
+        "  switch (type) {",
+        "    case 'a': return { id: 1, name: 'Alice' };",
+        "    default: return { id: 2, name: 'Bob' };",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "email",
+      severity: "error",
+    });
+  });
+
+  it("does not flag a function that uses an inner arrow function returning an object", async () => {
+    const file = join(dir, "inner-arrow.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser(id: number) {",
+        "  const fmt = () => ({ formatted: id });",
+        "  return { id: 1, name: 'x', email: 'a@b.com' };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("emits warn for dynamic return when all nested returns are dynamic", async () => {
+    const file = join(dir, "all-dynamic.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser(id: number) {",
+        "  if (id) { return fetchUser(id); }",
+        "  return fallback();",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(
+      violations.some(
+        (v) => v.field === "(return value)" && v.severity === "warn",
+      ),
+    ).toBe(true);
+  });
+});

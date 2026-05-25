@@ -1,7 +1,11 @@
 import { createRequire } from "node:module";
 import Parser from "tree-sitter";
 import type { SyntaxNode } from "tree-sitter";
-import type { FieldShape, FunctionShape } from "../../domain/FunctionShape.js";
+import type {
+  FieldShape,
+  FieldShapeRecord,
+  FunctionShape,
+} from "../../domain/FunctionShape.js";
 
 // tree-sitter-typescript ships CJS with no ESM wrapper — use createRequire
 const require = createRequire(import.meta.url);
@@ -12,7 +16,7 @@ const { typescript } = require("tree-sitter-typescript") as {
 const ROUTE_ANNOTATION_RE = /\/\/\s*@route\s+(\S+\s+\S+)(?:\s+(\d{3}))?/;
 
 type ShapeResult = {
-  returnShape: Record<string, FieldShape> | null;
+  returnShape: FieldShapeRecord | null;
   isDynamic: boolean;
 };
 
@@ -28,6 +32,24 @@ const DYNAMIC_NODE_TYPES = new Set([
   "as_expression",
   "new_expression",
   "template_string",
+]);
+
+// Node types that introduce a new function scope — do not recurse into these
+// when searching for return statements belonging to the enclosing function.
+const FUNCTION_SCOPE_TYPES = new Set([
+  "function_declaration",
+  "function",
+  "arrow_function",
+  "method_definition",
+  "generator_function",
+  "generator_function_declaration",
+]);
+
+// Boundaries for return collection: function scopes + catch_clause (error path,
+// excluded so the success return in the try body is preferred).
+const RETURN_BOUNDARY_TYPES = new Set([
+  ...FUNCTION_SCOPE_TYPES,
+  "catch_clause",
 ]);
 
 export class TreeSitterTypeScriptAnalyzer {
@@ -178,13 +200,36 @@ export class TreeSitterTypeScriptAnalyzer {
   }
 
   private shapeFromBlock(body: SyntaxNode): ShapeResult {
-    for (const child of body.namedChildren) {
-      if (child.type === "return_statement") {
-        const returnValue = child.namedChild(0);
-        return returnValue ? this.nodeToShapeResult(returnValue) : EMPTY_SHAPE;
+    const returnValues = this.collectReturnValues(body);
+
+    let lastStatic: ShapeResult | null = null;
+    let hasDynamic = false;
+
+    for (const value of returnValues) {
+      const result = this.nodeToShapeResult(value);
+      if (result.returnShape !== null) {
+        lastStatic = result;
+      } else if (result.isDynamic) {
+        hasDynamic = true;
       }
     }
+
+    if (lastStatic !== null) return lastStatic;
+    if (hasDynamic) return { returnShape: null, isDynamic: true };
     return EMPTY_SHAPE;
+  }
+
+  private collectReturnValues(node: SyntaxNode): SyntaxNode[] {
+    const values: SyntaxNode[] = [];
+    for (const child of node.namedChildren) {
+      if (child.type === "return_statement") {
+        const value = child.namedChild(0);
+        if (value) values.push(value);
+      } else if (!RETURN_BOUNDARY_TYPES.has(child.type)) {
+        values.push(...this.collectReturnValues(child));
+      }
+    }
+    return values;
   }
 
   private shapeFromArrowBody(body: SyntaxNode): ShapeResult {
@@ -199,7 +244,7 @@ export class TreeSitterTypeScriptAnalyzer {
     return this.nodeToShapeResult(body);
   }
 
-  private shapeFromNode(node: SyntaxNode): Record<string, FieldShape> | null {
+  private shapeFromNode(node: SyntaxNode): FieldShapeRecord | null {
     if (node.type === "object") return this.keysFromObject(node);
 
     if (node.type === "array") {
@@ -210,8 +255,8 @@ export class TreeSitterTypeScriptAnalyzer {
     return null;
   }
 
-  private keysFromObject(obj: SyntaxNode): Record<string, FieldShape> {
-    const result: Record<string, FieldShape> = {};
+  private keysFromObject(obj: SyntaxNode): FieldShapeRecord {
+    const result: FieldShapeRecord = {};
     for (const child of obj.namedChildren) {
       if (child.type === "pair") {
         const key = child.childForFieldName("key");
