@@ -1,5 +1,17 @@
 # @contractsentry/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- c0396c9: Add dynamic return detection, request body validation, and exit-code refinement
+
+### Patch Changes
+
+- Updated dependencies [c0396c9]
+- Updated dependencies [fabbfc4]
+  - @contractsentry/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
