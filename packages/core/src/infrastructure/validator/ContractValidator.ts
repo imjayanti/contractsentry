@@ -2,6 +2,8 @@ import type { FunctionShape } from "../../domain/FunctionShape.js";
 import type { IValidator } from "../../domain/IValidator.js";
 import type { Violation } from "../../domain/Violation.js";
 
+const NUMERIC_TYPES = new Set(["integer", "number"]);
+
 export class ContractValidator implements IValidator {
   validate(
     shape: FunctionShape,
@@ -95,8 +97,6 @@ export class ContractValidator implements IValidator {
 
   private typesCompatible(inferred: string, spec: string): boolean {
     if (inferred === spec) return true;
-    // integer is a valid number — treat numeric types as interchangeable
-    const numeric = new Set(["integer", "number"]);
-    return numeric.has(inferred) && numeric.has(spec);
+    return NUMERIC_TYPES.has(inferred) && NUMERIC_TYPES.has(spec);
   }
 }

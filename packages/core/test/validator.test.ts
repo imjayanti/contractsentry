@@ -526,6 +526,52 @@ describe("ContractValidator — type validation", () => {
   });
 });
 
+describe("ContractValidator — validateRequest type validation", () => {
+  const requestSchema = {
+    type: "object",
+    required: ["id", "active"],
+    properties: {
+      id: { type: "integer" },
+      active: { type: "boolean" },
+    },
+  };
+
+  it("emits warn when request param type mismatches spec", () => {
+    const violations = validator.validateRequest(
+      shape({ paramShape: { id: "string", active: "boolean" } }),
+      requestSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "id",
+      expected: "integer",
+      found: "string",
+      severity: "warn",
+    });
+  });
+
+  it("emits no violation when request param types match spec", () => {
+    expect(
+      validator.validateRequest(
+        shape({ paramShape: { id: "integer", active: "boolean" } }),
+        requestSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits no type violation when param type is null (unknown)", () => {
+    expect(
+      validator.validateRequest(
+        shape({ paramShape: { id: null, active: null } }),
+        requestSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("ContractValidator — validateRequest malformed schema.required", () => {
   it("treats non-array required as no required params", () => {
     expect(
@@ -577,5 +623,25 @@ describe("ContractValidator — prototype-shadowing fields", () => {
       "src/routes/users.ts",
     );
     expect(violations).toHaveLength(0);
+  });
+
+  it("emits violation for 'constructor' — also a prototype-shadowing field", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {} }),
+      { required: ["constructor"] },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.field).toBe("constructor");
+  });
+
+  it("emits violation for 'toString' — also a prototype-shadowing field", () => {
+    const violations = validator.validate(
+      shape({ returnShape: {} }),
+      { required: ["toString"] },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.field).toBe("toString");
   });
 });

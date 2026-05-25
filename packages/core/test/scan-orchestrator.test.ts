@@ -479,6 +479,29 @@ describe("ScanOrchestrator — request body validation", () => {
     ).toBe(true);
   });
 
+  it("emits warn for request param type mismatch", async () => {
+    const file = join(dir, "param-type-drift.ts");
+    await writeFile(
+      file,
+      // createUser spec requires name: string, email: string — passing a number for name
+      "// @route POST /users\nexport function createUser(name: number, email: string) { return { id: 1, name: String(name), email }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    const typeWarn = violations.find(
+      (v) => v.severity === "warn" && v.field === "name",
+    );
+    expect(typeWarn).toMatchObject({
+      endpoint: "POST /users",
+      field: "name",
+      expected: "string",
+      found: "number",
+      severity: "warn",
+    });
+  });
+
   it("emits both warn and request violation for dynamic return with missing request params", async () => {
     const file = join(dir, "dynamic-missing-param.ts");
     await writeFile(

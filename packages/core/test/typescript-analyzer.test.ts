@@ -54,6 +54,16 @@ describe("TreeSitterTypeScriptAnalyzer — suppression", () => {
     const getUser = shapes.find((s) => s.name === "getUser");
     expect(getUser?.suppressed).toBe(false);
   });
+
+  it("does not suppress when comment contains csentry-ignore as a substring", () => {
+    const source = [
+      "// @route GET /users/{id}",
+      "// csentry-ignore-extended",
+      "export function getUser() { return {}; }",
+    ].join("\n");
+    const shapes = new TreeSitterTypeScriptAnalyzer().analyze(source);
+    expect(shapes[0]?.suppressed).toBe(false);
+  });
 });
 
 describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
@@ -413,6 +423,27 @@ describe("TreeSitterTypeScriptAnalyzer — isDynamic detection", () => {
   it("sets isDynamic: false for primitive string return", () => {
     const shapes = analyzer.analyze(`export const f = () => "hello";`);
     expect(shapes[0]?.isDynamic).toBe(false);
+  });
+
+  it("sets isDynamic: true for template string return", () => {
+    const shapes = analyzer.analyze(
+      "export function f(name: string) { return `Hello ${name}`; }",
+    );
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for binary expression return (&&)", () => {
+    const shapes = analyzer.analyze(
+      "export function f(x: boolean) { return x && getUser(); }",
+    );
+    expect(shapes[0]?.isDynamic).toBe(true);
+  });
+
+  it("sets isDynamic: true for binary expression return (||)", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return cache || fetchUser(); }",
+    );
+    expect(shapes[0]?.isDynamic).toBe(true);
   });
 });
 

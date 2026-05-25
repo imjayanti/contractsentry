@@ -24,8 +24,10 @@ const DYNAMIC_NODE_TYPES = new Set([
   "member_expression",
   "await_expression",
   "ternary_expression",
+  "binary_expression",
   "as_expression",
   "new_expression",
+  "template_string",
 ]);
 
 export class TreeSitterTypeScriptAnalyzer {
@@ -85,7 +87,7 @@ export class TreeSitterTypeScriptAnalyzer {
         endpointGuess = match[1].trim();
         statusHint = match[2] ? Number.parseInt(match[2], 10) : null;
       }
-      if (text.includes("csentry-ignore")) suppressed = true;
+      if (/\bcsentry-ignore(?![\w-])/.test(text)) suppressed = true;
       sib = sib.previousNamedSibling;
     }
 
