@@ -67,7 +67,7 @@ describe("ScanOrchestrator — petstore integration", () => {
     });
   });
 
-  it("produces no violations for listUsers — array schema has no top-level required", () => {
+  it("produces no violations for listUsers — returns all required fields in the items schema", () => {
     expect(violations.some((v) => v.endpoint === "GET /users")).toBe(false);
   });
 
@@ -197,6 +197,71 @@ describe("ScanOrchestrator — edge cases", () => {
         filePaths: ["/no/such/file.ts"],
       }),
     ).rejects.toThrow(AnalysisError);
+  });
+});
+
+describe("ScanOrchestrator — array response validation", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "csentry-array-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it("emits violations for missing fields in array response items", async () => {
+    const file = join(dir, "missing-in-array.ts");
+    await writeFile(
+      file,
+      // listUsers spec items require id + name + email; only id and name returned
+      "// @route GET /users\nexport function listUsers() { return [{ id: 1, name: 'x' }]; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      endpoint: "GET /users",
+      field: "email",
+      severity: "error",
+    });
+  });
+
+  it("emits no violation when array response items satisfy all required fields", async () => {
+    const file = join(dir, "full-array.ts");
+    await writeFile(
+      file,
+      "// @route GET /users\nexport function listUsers() { return [{ id: 1, name: 'x', email: 'a@b.com' }]; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("detects type drift in array response items", async () => {
+    const file = join(dir, "type-drift-array.ts");
+    await writeFile(
+      file,
+      // id should be integer but returned as string
+      "// @route GET /users\nexport function listUsers() { return [{ id: '1', name: 'x', email: 'a@b.com' }]; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      endpoint: "GET /users",
+      field: "id",
+      expected: "integer",
+      found: "string",
+      severity: "warn",
+    });
   });
 });
 

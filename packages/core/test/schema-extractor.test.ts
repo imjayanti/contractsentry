@@ -101,6 +101,127 @@ describe("SchemaExtractor — extended fixture", () => {
   });
 });
 
+describe("SchemaExtractor — array response schemas", () => {
+  const extractor = new SchemaExtractor();
+
+  it("unwraps array response — stores items schema under the status code key", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Array API", version: "1.0.0" },
+      paths: {
+        "/users": {
+          get: {
+            responses: {
+              "200": {
+                description: "OK",
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["id", "name"],
+                        properties: {
+                          id: { type: "integer" },
+                          name: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const schemas = extractor.extract(doc);
+    const schema = schemas.get("GET /users:200");
+    expect(schema).toBeDefined();
+    expect(schema?.type).toBe("object");
+    expect(schema?.required).toEqual(["id", "name"]);
+  });
+
+  it("skips array response when items is absent", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Array API", version: "1.0.0" },
+      paths: {
+        "/items": {
+          get: {
+            responses: {
+              "200": {
+                description: "OK",
+                content: {
+                  "application/json": { schema: { type: "array" } },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(extractor.extract(doc).has("GET /items:200")).toBe(false);
+  });
+
+  it("skips array response when items is a $ref (pre-dereference guard)", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Array API", version: "1.0.0" },
+      paths: {
+        "/items": {
+          get: {
+            responses: {
+              "200": {
+                description: "OK",
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/Item" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(extractor.extract(doc).has("GET /items:200")).toBe(false);
+  });
+
+  it("does not modify object response schema", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Object API", version: "1.0.0" },
+      paths: {
+        "/user": {
+          get: {
+            responses: {
+              "200": {
+                description: "OK",
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      required: ["id"],
+                      properties: { id: { type: "integer" } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const schema = extractor.extract(doc).get("GET /user:200");
+    expect(schema?.type).toBe("object");
+    expect(schema?.required).toEqual(["id"]);
+  });
+});
+
 describe("SchemaExtractor — edge cases", () => {
   const extractor = new SchemaExtractor();
 

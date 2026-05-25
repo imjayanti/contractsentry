@@ -209,6 +209,13 @@ describe("TreeSitterTypeScriptAnalyzer — object spread", () => {
     const shapes = analyzer.analyze(source);
     expect(shapes[0]?.returnShape).toEqual({});
   });
+
+  it("returns null returnShape for empty array return", () => {
+    const source = "export function f() { return []; }";
+    const analyzer = new TreeSitterTypeScriptAnalyzer();
+    const shapes = analyzer.analyze(source);
+    expect(shapes[0]?.returnShape).toBeNull();
+  });
 });
 
 describe("TreeSitterTypeScriptAnalyzer — export default", () => {

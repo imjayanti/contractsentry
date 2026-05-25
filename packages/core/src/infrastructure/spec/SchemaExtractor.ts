@@ -59,7 +59,17 @@ export class SchemaExtractor {
   ): SchemaObject | null {
     const schema = response.content?.["application/json"]?.schema;
     if (!schema || "$ref" in schema) return null;
-    return schema as SchemaObject;
+    const schemaObj = schema as SchemaObject;
+    if (schemaObj.type === "array") return this.unwrapArrayItems(schemaObj);
+    return schemaObj;
+  }
+
+  private unwrapArrayItems(schema: SchemaObject): SchemaObject | null {
+    const { items } = schema;
+    if (typeof items !== "object" || items === null) return null;
+    const itemsObj = items as SchemaObject;
+    if ("$ref" in itemsObj) return null;
+    return itemsObj;
   }
 
   private extractRequestSchema(
