@@ -243,6 +243,39 @@ describe("ScanOrchestrator — array response validation", () => {
     expect(violations).toHaveLength(0);
   });
 
+  it("emits no violation when spec items are a primitive type — no field shapes to check", async () => {
+    const spec = join(dir, "primitive-items.yaml");
+    await writeFile(
+      spec,
+      [
+        'openapi: "3.0.3"',
+        'info: { title: "Tags API", version: "1.0.0" }',
+        "paths:",
+        "  /tags:",
+        "    get:",
+        "      responses:",
+        '        "200":',
+        '          description: "List of tags"',
+        "          content:",
+        "            application/json:",
+        "              schema:",
+        "                type: array",
+        "                items:",
+        "                  type: string",
+      ].join("\n"),
+    );
+    const file = join(dir, "tags.ts");
+    await writeFile(
+      file,
+      "// @route GET /tags\nexport function listTags() { return ['a', 'b']; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
   it("detects type drift in array response items", async () => {
     const file = join(dir, "type-drift-array.ts");
     await writeFile(

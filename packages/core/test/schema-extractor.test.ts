@@ -191,6 +191,30 @@ describe("SchemaExtractor — array response schemas", () => {
     expect(extractor.extract(doc).has("GET /items:200")).toBe(false);
   });
 
+  it("skips array response when items is a primitive type", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Array API", version: "1.0.0" },
+      paths: {
+        "/tags": {
+          get: {
+            responses: {
+              "200": {
+                description: "OK",
+                content: {
+                  "application/json": {
+                    schema: { type: "array", items: { type: "string" } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(extractor.extract(doc).has("GET /tags:200")).toBe(false);
+  });
+
   it("does not modify object response schema", () => {
     const doc = {
       openapi: "3.0.3",

@@ -69,6 +69,8 @@ export class SchemaExtractor {
     if (typeof items !== "object" || items === null) return null;
     const itemsObj = items as SchemaObject;
     if ("$ref" in itemsObj) return null;
+    // Only validate object-typed items; primitive arrays (string[], number[]) have no field shapes
+    if (itemsObj.type !== "object") return null;
     return itemsObj;
   }
 
