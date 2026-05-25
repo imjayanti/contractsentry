@@ -9,7 +9,7 @@ const { typescript } = require("tree-sitter-typescript") as {
   typescript: unknown;
 };
 
-const ROUTE_ANNOTATION_RE = /\/\/\s*@route\s+(\S+\s+\S+)/;
+const ROUTE_ANNOTATION_RE = /\/\/\s*@route\s+(\S+\s+\S+)(?:\s+(\d{3}))?/;
 
 type ShapeResult = {
   returnShape: Record<string, string | null> | null;
@@ -52,16 +52,17 @@ export class TreeSitterTypeScriptAnalyzer {
   }
 
   private fromExport(node: SyntaxNode): FunctionShape | null {
-    const { endpointGuess, suppressed } = this.readLeadingComments(node);
+    const { endpointGuess, statusHint, suppressed } =
+      this.readLeadingComments(node);
     const decl = node.childForFieldName("declaration");
     if (!decl) return null;
 
     if (decl.type === "function_declaration") {
-      return this.fromFunctionDecl(decl, endpointGuess, suppressed);
+      return this.fromFunctionDecl(decl, endpointGuess, statusHint, suppressed);
     }
 
     if (decl.type === "lexical_declaration") {
-      return this.fromLexicalDecl(decl, endpointGuess, suppressed);
+      return this.fromLexicalDecl(decl, endpointGuess, statusHint, suppressed);
     }
 
     return null;
@@ -69,26 +70,32 @@ export class TreeSitterTypeScriptAnalyzer {
 
   private readLeadingComments(node: SyntaxNode): {
     endpointGuess: string | null;
+    statusHint: number | null;
     suppressed: boolean;
   } {
     let endpointGuess: string | null = null;
+    let statusHint: number | null = null;
     let suppressed = false;
 
     let sib = node.previousNamedSibling;
     while (sib?.type === "comment") {
       const text = sib.text;
       const match = ROUTE_ANNOTATION_RE.exec(text);
-      if (match) endpointGuess = match[1].trim();
+      if (match) {
+        endpointGuess = match[1].trim();
+        statusHint = match[2] ? Number.parseInt(match[2], 10) : null;
+      }
       if (text.includes("csentry-ignore")) suppressed = true;
       sib = sib.previousNamedSibling;
     }
 
-    return { endpointGuess, suppressed };
+    return { endpointGuess, statusHint, suppressed };
   }
 
   private fromFunctionDecl(
     decl: SyntaxNode,
     endpointGuess: string | null,
+    statusHint: number | null,
     suppressed: boolean,
   ): FunctionShape | null {
     const nameNode = decl.childForFieldName("name");
@@ -106,6 +113,7 @@ export class TreeSitterTypeScriptAnalyzer {
     return {
       name: nameNode.text,
       endpointGuess,
+      statusHint,
       returnShape,
       paramShape,
       line: decl.startPosition.row + 1,
@@ -117,6 +125,7 @@ export class TreeSitterTypeScriptAnalyzer {
   private fromLexicalDecl(
     decl: SyntaxNode,
     endpointGuess: string | null,
+    statusHint: number | null,
     suppressed: boolean,
   ): FunctionShape | null {
     const varDeclarator = decl.namedChild(0);
@@ -150,6 +159,7 @@ export class TreeSitterTypeScriptAnalyzer {
     return {
       name: nameNode.text,
       endpointGuess,
+      statusHint,
       returnShape,
       paramShape,
       line: decl.startPosition.row + 1,

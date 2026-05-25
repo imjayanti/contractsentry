@@ -48,6 +48,7 @@ export class ScanOrchestrator {
 
       for (const schema of this.successSchemasFor(
         shape.endpointGuess,
+        shape.statusHint,
         schemas,
       )) {
         violations.push(...this.validator.validate(shape, schema, file));
@@ -65,12 +66,17 @@ export class ScanOrchestrator {
 
   private successSchemasFor(
     endpointGuess: string,
+    statusHint: number | null,
     schemas: Map<string, Record<string, unknown>>,
   ): Record<string, unknown>[] {
     const prefix = `${endpointGuess}:`;
     const result: Record<string, unknown>[] = [];
     for (const [key, schema] of schemas) {
-      if (key.startsWith(prefix) && key.slice(prefix.length).startsWith("2")) {
+      if (!key.startsWith(prefix)) continue;
+      const code = key.slice(prefix.length);
+      if (
+        statusHint !== null ? code === String(statusHint) : code.startsWith("2")
+      ) {
         result.push(schema);
       }
     }

@@ -8,6 +8,7 @@ function shape(overrides: Partial<FunctionShape> = {}): FunctionShape {
   return {
     name: "getUser",
     endpointGuess: "GET /users/{id}",
+    statusHint: null,
     returnShape: { id: null, name: null, email: null },
     paramShape: null,
     line: 5,

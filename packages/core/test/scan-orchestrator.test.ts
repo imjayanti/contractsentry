@@ -302,6 +302,98 @@ describe("ScanOrchestrator — dynamic return warnings", () => {
   });
 });
 
+describe("ScanOrchestrator — status hint", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "csentry-status-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it("validates against specific status code when annotation includes a hint", async () => {
+    const file = join(dir, "status-hint.ts");
+    await writeFile(
+      file,
+      "// @route POST /users 201\nexport function createUser(name: string, email: string) { return { id: 1, name, email }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("produces no violations when status hint matches no schema in spec", async () => {
+    const file = join(dir, "wrong-status.ts");
+    // POST /users only has a 201 schema in petstore — 200 does not exist
+    await writeFile(
+      file,
+      "// @route POST /users 200\nexport function createUser() { return {}; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("validates against a 4xx schema when status hint is 404", async () => {
+    const file = join(dir, "error-response.ts");
+    // GET /users/{id} 404 schema requires: message
+    await writeFile(
+      file,
+      "// @route GET /users/{id} 404\nexport function notFound() { return {}; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      endpoint: "GET /users/{id}",
+      field: "message",
+      severity: "error",
+    });
+  });
+
+  it("without status hint validates against all 2xx schemas", async () => {
+    const file = join(dir, "all-2xx.ts");
+    await writeFile(
+      file,
+      "// @route POST /users\nexport function createUser(name: string, email: string) { return { id: 1, name, email }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("type drift is still detected when validating against a pinned status code", async () => {
+    const file = join(dir, "type-drift.ts");
+    await writeFile(
+      file,
+      // id should be integer per the 201 schema but is returned as string
+      "// @route POST /users 201\nexport function createUser(name: string, email: string) { return { id: '1', name, email }; }",
+    );
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      endpoint: "POST /users",
+      field: "id",
+      expected: "integer",
+      found: "string",
+      severity: "warn",
+    });
+  });
+});
+
 describe("ScanOrchestrator — request body validation", () => {
   let dir: string;
 

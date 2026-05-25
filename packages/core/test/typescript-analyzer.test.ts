@@ -427,6 +427,51 @@ describe("TreeSitterTypeScriptAnalyzer — isDynamic with petstore fixture", () 
   });
 });
 
+describe("TreeSitterTypeScriptAnalyzer — status hint", () => {
+  const analyzer = new TreeSitterTypeScriptAnalyzer();
+
+  it("extracts status hint from @route annotation", () => {
+    const shapes = analyzer.analyze(
+      "// @route POST /users 201\nexport function createUser() { return {}; }",
+    );
+    expect(shapes[0]?.statusHint).toBe(201);
+  });
+
+  it("sets statusHint: null when no status code in @route annotation", () => {
+    const shapes = analyzer.analyze(
+      "// @route GET /users/{id}\nexport function getUser() { return {}; }",
+    );
+    expect(shapes[0]?.statusHint).toBeNull();
+  });
+
+  it("sets statusHint: null for unannotated function", () => {
+    const shapes = analyzer.analyze("export function helper() { return {}; }");
+    expect(shapes[0]?.statusHint).toBeNull();
+  });
+
+  it("extracts non-2xx status hint", () => {
+    const shapes = analyzer.analyze(
+      "// @route GET /users/{id} 404\nexport function notFound() { return {}; }",
+    );
+    expect(shapes[0]?.statusHint).toBe(404);
+  });
+
+  it("preserves endpointGuess alongside status hint", () => {
+    const shapes = analyzer.analyze(
+      "// @route PUT /users/{id} 200\nexport function updateUser() { return {}; }",
+    );
+    expect(shapes[0]?.endpointGuess).toBe("PUT /users/{id}");
+    expect(shapes[0]?.statusHint).toBe(200);
+  });
+
+  it("all petstore fixture shapes have statusHint: null", async () => {
+    const shapes = analyzer.analyze(await loadFixture());
+    for (const shape of shapes) {
+      expect(shape.statusHint).toBeNull();
+    }
+  });
+});
+
 describe("TreeSitterTypeScriptAnalyzer — paramShape extraction", () => {
   const analyzer = new TreeSitterTypeScriptAnalyzer();
 
