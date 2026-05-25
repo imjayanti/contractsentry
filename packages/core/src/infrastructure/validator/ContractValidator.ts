@@ -1,6 +1,6 @@
 import type { FieldShape, FunctionShape } from "../../domain/FunctionShape.js";
 import type { IValidator } from "../../domain/IValidator.js";
-import type { Violation } from "../../domain/Violation.js";
+import type { Severity, Violation } from "../../domain/Violation.js";
 
 const NUMERIC_TYPES = new Set(["integer", "number"]);
 
@@ -42,68 +42,115 @@ export class ContractValidator implements IValidator {
     for (const field of required) {
       const fullField = fieldPrefix + field;
       if (!Object.hasOwn(shapeFields, field)) {
-        violations.push({
-          file,
-          line: shape.line,
-          endpoint: shape.endpointGuess ?? "unknown",
-          field: fullField,
-          expected: "present",
-          found: "missing",
-          severity: "error",
-          suppressed: shape.suppressed,
-        });
-      } else {
-        const inferredValue = shapeFields[field];
-        if (typeof inferredValue === "object" && inferredValue !== null) {
-          const nestedSchema = this.fieldSchemaFor(schema, field);
-          if (nestedSchema !== null) {
-            const schemaType = this.typeFromSchema(nestedSchema);
-            if (schemaType !== null && schemaType !== "object") {
-              violations.push({
+        violations.push(
+          this.buildViolation(
+            shape,
+            file,
+            fullField,
+            "error",
+            "present",
+            "missing",
+          ),
+        );
+        continue;
+      }
+
+      const inferredValue = shapeFields[field];
+      if (typeof inferredValue === "object" && inferredValue !== null) {
+        const nestedSchema = this.fieldSchemaFor(schema, field);
+        if (nestedSchema !== null) {
+          const schemaType = this.typeFromSchema(nestedSchema);
+          if (schemaType !== null && schemaType !== "object") {
+            violations.push(
+              this.buildViolation(
+                shape,
                 file,
-                line: shape.line,
-                endpoint: shape.endpointGuess ?? "unknown",
-                field: fullField,
-                expected: schemaType,
-                found: "object",
-                severity: "warn",
-                suppressed: shape.suppressed,
-              });
-            } else {
-              violations.push(
-                ...this.checkFields(
-                  inferredValue,
-                  shape,
-                  nestedSchema,
-                  file,
-                  `${fullField}.`,
-                ),
-              );
-            }
+                fullField,
+                "warn",
+                schemaType,
+                "object",
+              ),
+            );
+          } else {
+            violations.push(
+              ...this.checkFields(
+                inferredValue,
+                shape,
+                nestedSchema,
+                file,
+                `${fullField}.`,
+              ),
+            );
           }
-        } else {
-          const specType = this.specTypeFor(schema, field);
-          if (
-            inferredValue !== null &&
-            specType !== null &&
-            !this.typesCompatible(inferredValue, specType)
-          ) {
-            violations.push({
+        }
+      } else {
+        const fieldSchema = this.fieldSchemaFor(schema, field);
+        const specType =
+          fieldSchema !== null ? this.typeFromSchema(fieldSchema) : null;
+        const hasTypeMismatch =
+          inferredValue !== null &&
+          specType !== null &&
+          !this.typesCompatible(inferredValue, specType);
+
+        if (hasTypeMismatch) {
+          violations.push(
+            this.buildViolation(
+              shape,
               file,
-              line: shape.line,
-              endpoint: shape.endpointGuess ?? "unknown",
-              field: fullField,
-              expected: specType,
-              found: inferredValue,
-              severity: "warn",
-              suppressed: shape.suppressed,
-            });
+              fullField,
+              "warn",
+              specType,
+              inferredValue,
+            ),
+          );
+        } else if (
+          inferredValue !== null &&
+          this.isStringLiteral(inferredValue)
+        ) {
+          const enumValues =
+            fieldSchema !== null
+              ? this.enumValuesFromSchema(fieldSchema)
+              : null;
+          if (
+            enumValues !== null &&
+            !enumValues.includes(this.stripQuotes(inferredValue))
+          ) {
+            violations.push(
+              this.buildViolation(
+                shape,
+                file,
+                fullField,
+                "warn",
+                `one of [${enumValues.join(", ")}]`,
+                this.stripQuotes(inferredValue),
+              ),
+            );
           }
         }
       }
     }
 
     return violations;
+  }
+
+  private buildViolation(
+    shape: FunctionShape,
+    file: string,
+    field: string,
+    severity: Severity,
+    expected: string,
+    found: string,
+  ): Violation {
+    return {
+      file,
+      line: shape.line,
+      endpoint: shape.endpointGuess ?? "unknown",
+      field,
+      expected,
+      found,
+      severity,
+      suppressed: shape.suppressed,
+    };
   }
 
   private fieldSchemaFor(
@@ -115,14 +162,6 @@ export class ContractValidator implements IValidator {
     const fieldSchema = (properties as Record<string, unknown>)[field];
     if (typeof fieldSchema !== "object" || fieldSchema === null) return null;
     return fieldSchema as Record<string, unknown>;
-  }
-
-  private specTypeFor(
-    schema: Record<string, unknown>,
-    field: string,
-  ): string | null {
-    const fieldSchema = this.fieldSchemaFor(schema, field);
-    return fieldSchema !== null ? this.typeFromSchema(fieldSchema) : null;
   }
 
   private typeFromSchema(schema: Record<string, unknown>): string | null {
@@ -139,7 +178,29 @@ export class ContractValidator implements IValidator {
   }
 
   private typesCompatible(inferred: string, spec: string): boolean {
+    if (this.isStringLiteral(inferred)) return spec === "string";
     if (inferred === spec) return true;
     return NUMERIC_TYPES.has(inferred) && NUMERIC_TYPES.has(spec);
+  }
+
+  private isStringLiteral(value: string): boolean {
+    return (
+      value.length >= 2 &&
+      ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'")))
+    );
+  }
+
+  private stripQuotes(value: string): string {
+    return value.slice(1, -1);
+  }
+
+  private enumValuesFromSchema(
+    schema: Record<string, unknown>,
+  ): string[] | null {
+    const { enum: enumArr } = schema;
+    if (!Array.isArray(enumArr)) return null;
+    const values = enumArr.filter((v): v is string => typeof v === "string");
+    return values.length > 0 ? values : null;
   }
 }

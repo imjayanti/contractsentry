@@ -53,7 +53,7 @@ describe("ScanOrchestrator — petstore integration", () => {
     });
   });
 
-  it("detects id type drift on createUser — id is string but spec requires integer", () => {
+  it("detects id type drift on createUser — id is string literal but spec requires integer", () => {
     const v = violations.find(
       (v) => v.endpoint === "POST /users" && v.field === "id",
     );
@@ -61,7 +61,7 @@ describe("ScanOrchestrator — petstore integration", () => {
       endpoint: "POST /users",
       field: "id",
       expected: "integer",
-      found: "string",
+      found: '"1"',
       severity: "warn",
       suppressed: false,
     });
@@ -303,7 +303,7 @@ describe("ScanOrchestrator — allOf schema composition", () => {
     expect(violations[0]).toMatchObject({
       field: "id",
       expected: "integer",
-      found: "string",
+      found: "'1'",
       severity: "warn",
     });
   });
@@ -389,7 +389,7 @@ describe("ScanOrchestrator — array response validation", () => {
     const file = join(dir, "type-drift-array.ts");
     await writeFile(
       file,
-      // id should be integer but returned as string
+      // id should be integer but returned as string literal
       "// @route GET /users\nexport function listUsers() { return [{ id: '1', name: 'x', email: 'a@b.com' }]; }",
     );
     const violations = await orchestrator.scan({
@@ -401,7 +401,7 @@ describe("ScanOrchestrator — array response validation", () => {
       endpoint: "GET /users",
       field: "id",
       expected: "integer",
-      found: "string",
+      found: "'1'",
       severity: "warn",
     });
   });
@@ -583,7 +583,7 @@ describe("ScanOrchestrator — status hint", () => {
     const file = join(dir, "type-drift.ts");
     await writeFile(
       file,
-      // id should be integer per the 201 schema but is returned as string
+      // id should be integer per the 201 schema but is returned as string literal
       "// @route POST /users 201\nexport function createUser(name: string, email: string) { return { id: '1', name, email }; }",
     );
     const violations = await orchestrator.scan({
@@ -595,7 +595,7 @@ describe("ScanOrchestrator — status hint", () => {
       endpoint: "POST /users",
       field: "id",
       expected: "integer",
-      found: "string",
+      found: "'1'",
       severity: "warn",
     });
   });
@@ -838,5 +838,176 @@ describe("ScanOrchestrator — request body validation", () => {
     expect(
       violations.some((v) => v.severity === "error" && v.field === "email"),
     ).toBe(true);
+  });
+});
+
+describe("ScanOrchestrator — enum validation", () => {
+  let dir: string;
+  let spec: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "csentry-enum-test-"));
+    spec = join(dir, "enum.yaml");
+    await writeFile(
+      spec,
+      [
+        'openapi: "3.0.3"',
+        'info: { title: "Enum API", version: "1.0.0" }',
+        "paths:",
+        "  /orders/{id}:",
+        "    get:",
+        "      responses:",
+        '        "200":',
+        '          description: "OK"',
+        "          content:",
+        "            application/json:",
+        "              schema:",
+        "                type: object",
+        "                required: [id, status]",
+        "                properties:",
+        "                  id:",
+        "                    type: integer",
+        "                  status:",
+        "                    type: string",
+        "                    enum: [pending, active, cancelled]",
+      ].join("\n"),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it("emits warn when returned literal is not in enum", async () => {
+    const file = join(dir, "order.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /orders/{id}",
+        "export function getOrder() {",
+        "  return { id: 1, status: 'draft' };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "status",
+      expected: "one of [pending, active, cancelled]",
+      found: "draft",
+      severity: "warn",
+    });
+  });
+
+  it("emits no violation when returned literal is in enum", async () => {
+    const file = join(dir, "order-valid.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /orders/{id}",
+        "export function getOrder() {",
+        "  return { id: 1, status: 'active' };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("emits missing-field error rather than enum warn when field is absent", async () => {
+    const file = join(dir, "order-missing.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /orders/{id}",
+        "export function getOrder() {",
+        "  return { id: 1 };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "status",
+      expected: "present",
+      found: "missing",
+      severity: "error",
+    });
+  });
+
+  it("emits no enum violation when field value is dynamic (shape is null)", async () => {
+    const file = join(dir, "order-dynamic.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /orders/{id}",
+        "export function getOrder() {",
+        "  return { id: 1, status: getStatus() };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("emits enum violation for a field inside array response items", async () => {
+    const arraySpec = join(dir, "enum-array.yaml");
+    await writeFile(
+      arraySpec,
+      [
+        'openapi: "3.0.3"',
+        'info: { title: "Array Enum API", version: "1.0.0" }',
+        "paths:",
+        "  /orders:",
+        "    get:",
+        "      responses:",
+        '        "200":',
+        '          description: "OK"',
+        "          content:",
+        "            application/json:",
+        "              schema:",
+        "                type: array",
+        "                items:",
+        "                  type: object",
+        "                  required: [status]",
+        "                  properties:",
+        "                    status:",
+        "                      type: string",
+        "                      enum: [pending, active]",
+      ].join("\n"),
+    );
+    const file = join(dir, "orders.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /orders",
+        "export function listOrders() {",
+        "  return [{ status: 'draft' }];",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: arraySpec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "status",
+      expected: "one of [pending, active]",
+      found: "draft",
+      severity: "warn",
+    });
   });
 });

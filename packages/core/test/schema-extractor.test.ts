@@ -631,6 +631,26 @@ describe("SchemaExtractor — allOf composition", () => {
       city: { type: "string" },
     });
   });
+
+  it("preserves enum from a property-level allOf subschema", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          type: "object",
+          required: ["status"],
+          properties: {
+            status: {
+              allOf: [{ type: "string" }, { enum: ["active", "inactive"] }],
+            },
+          },
+        }),
+      )
+      .get("GET /users/{id}:200");
+    const statusSchema = (schema?.properties as Record<string, unknown>)
+      ?.status as Record<string, unknown> | undefined;
+    expect(statusSchema?.type).toBe("string");
+    expect(statusSchema?.enum).toEqual(["active", "inactive"]);
+  });
 });
 
 describe("SchemaExtractor — oneOf composition", () => {
@@ -782,6 +802,29 @@ describe("SchemaExtractor — anyOf / nullable", () => {
     const schema = schemas.get("GET /items:200");
     expect(schema?.required).toBeUndefined();
     expect(schema?.properties).toBeUndefined();
+  });
+
+  it("preserves enum from the non-null anyOf variant on a property", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          type: "object",
+          required: ["status"],
+          properties: {
+            status: {
+              anyOf: [
+                { type: "string", enum: ["active", "inactive"] },
+                { type: "null" },
+              ],
+            },
+          },
+        }),
+      )
+      .get("GET /users/{id}:200");
+    const statusSchema = (schema?.properties as Record<string, unknown>)
+      ?.status as Record<string, unknown> | undefined;
+    expect(statusSchema?.type).toBe("string");
+    expect(statusSchema?.enum).toEqual(["active", "inactive"]);
   });
 
   it("request body with anyOf nullable resolves to the non-null schema", () => {

@@ -139,6 +139,7 @@ export class SchemaExtractor {
     const required = new Set<string>();
     const properties: Record<string, unknown> = {};
     let type: string | undefined;
+    let firstEnum: unknown[] | undefined;
 
     for (const schema of schemas) {
       if (Array.isArray(schema.required)) {
@@ -152,12 +153,16 @@ export class SchemaExtractor {
       if (typeof schema.type === "string" && type === undefined) {
         type = schema.type;
       }
+      if (Array.isArray(schema.enum) && firstEnum === undefined) {
+        firstEnum = schema.enum as unknown[];
+      }
     }
 
     const result: SchemaObject = {};
     if (type !== undefined) result.type = type;
     if (required.size > 0) result.required = [...required];
     if (Object.keys(properties).length > 0) result.properties = properties;
+    if (firstEnum !== undefined) result.enum = firstEnum;
     return result;
   }
 
@@ -191,10 +196,20 @@ export class SchemaExtractor {
         ? types[0]
         : undefined;
 
+    // Union enum values from all variants — any value allowed by any variant is valid
+    const allEnumValues = schemas.flatMap((s) =>
+      Array.isArray(s.enum)
+        ? s.enum.filter((v): v is string => typeof v === "string")
+        : [],
+    );
+    const unionEnum =
+      allEnumValues.length > 0 ? [...new Set(allEnumValues)] : undefined;
+
     const result: SchemaObject = {};
     if (sharedType !== undefined) result.type = sharedType;
     if (requiredInAll.length > 0) result.required = requiredInAll;
     if (Object.keys(properties).length > 0) result.properties = properties;
+    if (unionEnum !== undefined) result.enum = unionEnum;
     return result;
   }
 

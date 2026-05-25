@@ -239,7 +239,7 @@ export class TreeSitterTypeScriptAnalyzer {
         return null;
       }
       case "string":
-        return "string";
+        return node.text;
       case "true":
       case "false":
         return "boolean";

@@ -808,3 +808,175 @@ describe("ContractValidator — prototype-shadowing fields", () => {
     expect(violations[0]?.field).toBe("toString");
   });
 });
+
+describe("ContractValidator — enum validation", () => {
+  const enumSchema = {
+    type: "object",
+    required: ["status", "role"],
+    properties: {
+      status: { type: "string", enum: ["active", "inactive", "pending"] },
+      role: { type: "string", enum: ["admin", "user", "guest"] },
+    },
+  };
+
+  it("emits no violation when string literal is in the enum", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: { status: '"active"', role: '"admin"' } }),
+        enumSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits warn when string literal is not in the enum", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { status: '"draft"', role: '"admin"' } }),
+      enumSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "status",
+      expected: "one of [active, inactive, pending]",
+      found: "draft",
+      severity: "warn",
+    });
+  });
+
+  it("emits no enum violation when inferred value is null (unknown)", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: { status: null, role: null } }),
+        enumSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits no enum violation when spec field has no enum array", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: { status: '"active"', role: '"admin"' } }),
+        {
+          type: "object",
+          required: ["status", "role"],
+          properties: {
+            status: { type: "string" },
+            role: { type: "string" },
+          },
+        },
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("type mismatch takes precedence — no enum violation when value type is incompatible", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { status: "integer", role: '"admin"' } }),
+      enumSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "status",
+      expected: "string",
+      found: "integer",
+      severity: "warn",
+    });
+  });
+
+  it("emits warn for single-quoted string literal not in enum", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { status: "'draft'", role: '"admin"' } }),
+      enumSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "status",
+      found: "draft",
+      severity: "warn",
+    });
+  });
+
+  it("emits violations for all fields whose literals are not in their enum", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { status: '"unknown"', role: '"superuser"' } }),
+      enumSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(2);
+    const fields = violations.map((v) => v.field);
+    expect(fields).toContain("status");
+    expect(fields).toContain("role");
+  });
+
+  it("suppresses enum violations when shape is suppressed", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { status: '"draft"', role: '"admin"' },
+        suppressed: true,
+      }),
+      enumSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations.length).toBeGreaterThan(0);
+    for (const v of violations) {
+      expect(v.suppressed).toBe(true);
+    }
+  });
+
+  it("emits no enum violation when value is a type-name string (not a literal)", () => {
+    // "string" used as a type name directly (not from source literal) — no enum check applies
+    expect(
+      validator.validate(
+        shape({ returnShape: { status: "string", role: "string" } }),
+        enumSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits warn for empty string literal not in enum", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { status: '""', role: '"admin"' } }),
+      enumSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "status",
+      found: "",
+      severity: "warn",
+    });
+  });
+
+  it("emits warn with dot-notation field name for enum violation in nested field", () => {
+    const nestedEnumSchema = {
+      type: "object",
+      required: ["order"],
+      properties: {
+        order: {
+          type: "object",
+          required: ["status"],
+          properties: {
+            status: { type: "string", enum: ["pending", "shipped"] },
+          },
+        },
+      },
+    };
+    const violations = validator.validate(
+      shape({ returnShape: { order: { status: '"cancelled"' } } }),
+      nestedEnumSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "order.status",
+      expected: "one of [pending, shipped]",
+      found: "cancelled",
+      severity: "warn",
+    });
+  });
+});

@@ -72,7 +72,7 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
     const getUser = shapes.find((s) => s.name === "getUser");
-    expect(getUser?.returnShape).toEqual({ id: null, name: "string" });
+    expect(getUser?.returnShape).toEqual({ id: null, name: '"Alice"' });
   });
 
   it("extracts literal return shape from createUser — detects type drift (id is string)", async () => {
@@ -80,7 +80,7 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
     const createUser = shapes.find((s) => s.name === "createUser");
-    expect(createUser?.returnShape).toMatchObject({ id: "string", name: null });
+    expect(createUser?.returnShape).toMatchObject({ id: '"1"', name: null });
   });
 
   it("extracts array return shape from listUsers", async () => {
@@ -90,8 +90,8 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
     const listUsers = shapes.find((s) => s.name === "listUsers");
     expect(listUsers?.returnShape).toMatchObject({
       id: "integer",
-      name: "string",
-      email: "string",
+      name: '"Alice"',
+      email: '"alice@example.com"',
     });
   });
 
@@ -107,7 +107,7 @@ describe("TreeSitterTypeScriptAnalyzer — return shapes", () => {
     const source = `export const getItem = () => ({ id: 1, title: "thing" });`;
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
-    expect(shapes[0]?.returnShape).toEqual({ id: "integer", title: "string" });
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer", title: '"thing"' });
   });
 });
 
@@ -161,21 +161,24 @@ describe("TreeSitterTypeScriptAnalyzer — arrow function variants", () => {
     const source = `export const fn = () => { return { id: 1, name: "x" }; };`;
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
-    expect(shapes[0]?.returnShape).toEqual({ id: "integer", name: "string" });
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer", name: '"x"' });
   });
 
   it("handles arrow returning array without parentheses", () => {
     const source = `export const fn = () => [{ id: 1, email: "a@b.com" }];`;
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
-    expect(shapes[0]?.returnShape).toEqual({ id: "integer", email: "string" });
+    expect(shapes[0]?.returnShape).toEqual({
+      id: "integer",
+      email: '"a@b.com"',
+    });
   });
 
   it("handles async arrow function returning an object", () => {
     const source = `export const fn = async () => ({ status: "ok" });`;
     const analyzer = new TreeSitterTypeScriptAnalyzer();
     const shapes = analyzer.analyze(source);
-    expect(shapes[0]?.returnShape).toEqual({ status: "string" });
+    expect(shapes[0]?.returnShape).toEqual({ status: '"ok"' });
   });
 
   it("returns null for arrow returning a primitive", () => {
@@ -252,11 +255,11 @@ describe("TreeSitterTypeScriptAnalyzer — value type extraction", () => {
     expect(shapes[0]?.returnShape?.ratio).toBe("number");
   });
 
-  it("extracts string type from a string literal", () => {
+  it("captures the raw string literal value from a string literal", () => {
     const shapes = analyzer.analyze(
       `export function f() { return { label: "hello" }; }`,
     );
-    expect(shapes[0]?.returnShape?.label).toBe("string");
+    expect(shapes[0]?.returnShape?.label).toBe('"hello"');
   });
 
   it("extracts boolean type from true literal", () => {
@@ -518,8 +521,8 @@ describe("TreeSitterTypeScriptAnalyzer — nested object extraction", () => {
       `export function f() { return { address: { city: "NYC", zip: "10001" } }; }`,
     );
     expect(shapes[0]?.returnShape?.address).toEqual({
-      city: "string",
-      zip: "string",
+      city: '"NYC"',
+      zip: '"10001"',
     });
   });
 
@@ -529,7 +532,7 @@ describe("TreeSitterTypeScriptAnalyzer — nested object extraction", () => {
     );
     expect(shapes[0]?.returnShape).toEqual({
       id: "integer",
-      address: { city: "string" },
+      address: { city: '"NYC"' },
     });
   });
 
@@ -546,7 +549,7 @@ describe("TreeSitterTypeScriptAnalyzer — nested object extraction", () => {
     );
     expect(shapes[0]?.returnShape).toEqual({
       id: "integer",
-      meta: { tag: "string" },
+      meta: { tag: '"x"' },
     });
   });
 
@@ -555,7 +558,7 @@ describe("TreeSitterTypeScriptAnalyzer — nested object extraction", () => {
       `export function f() { return { address: { city: "NYC", code: zipCode } }; }`,
     );
     expect(shapes[0]?.returnShape?.address).toEqual({
-      city: "string",
+      city: '"NYC"',
       code: null,
     });
   });
