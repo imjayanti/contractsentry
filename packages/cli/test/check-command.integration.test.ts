@@ -50,8 +50,8 @@ describe("csentry check — petstore fixture", () => {
     expect(result.exitCode).toBe(1);
   });
 
-  it("reports exactly 2 violations", () => {
-    expect(result.stdout).toContain("Found 2 violations");
+  it("reports exactly 3 violations", () => {
+    expect(result.stdout).toContain("Found 3 violations");
   });
 
   it("reports missing email on GET /users/{id}", () => {
@@ -59,6 +59,14 @@ describe("csentry check — petstore fixture", () => {
     expect(result.stdout).toContain("GET /users/{id}");
     expect(result.stdout).toContain(
       'field "email" expected present, found missing',
+    );
+  });
+
+  it("reports wrong id type on POST /users", () => {
+    expect(result.stdout).toContain("users.ts:16");
+    expect(result.stdout).toContain("POST /users");
+    expect(result.stdout).toContain(
+      'field "id" expected integer, found string',
     );
   });
 
