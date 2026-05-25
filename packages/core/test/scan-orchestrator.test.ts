@@ -200,6 +200,115 @@ describe("ScanOrchestrator — edge cases", () => {
   });
 });
 
+describe("ScanOrchestrator — allOf schema composition", () => {
+  let dir: string;
+  let spec: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "csentry-allof-test-"));
+    spec = join(dir, "allof.yaml");
+    await writeFile(
+      spec,
+      [
+        'openapi: "3.0.3"',
+        'info: { title: "AllOf API", version: "1.0.0" }',
+        "paths:",
+        "  /users/{id}:",
+        "    get:",
+        "      responses:",
+        '        "200":',
+        '          description: "OK"',
+        "          content:",
+        "            application/json:",
+        "              schema:",
+        "                allOf:",
+        "                  - type: object",
+        "                    required: [id, createdAt]",
+        "                    properties:",
+        "                      id:",
+        "                        type: integer",
+        "                      createdAt:",
+        "                        type: string",
+        "                  - type: object",
+        "                    required: [name, email]",
+        "                    properties:",
+        "                      name:",
+        "                        type: string",
+        "                      email:",
+        "                        type: string",
+      ].join("\n"),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it("emits violations for fields missing from the merged allOf schema", async () => {
+    const file = join(dir, "user.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser() {",
+        "  return { id: 1, name: 'Alice', email: 'a@b.com' };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "createdAt",
+      severity: "error",
+    });
+  });
+
+  it("emits no violation when all merged allOf required fields are present", async () => {
+    const file = join(dir, "user-full.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser() {",
+        "  return { id: 1, createdAt: '2024-01-01', name: 'Alice', email: 'a@b.com' };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("detects type drift against merged allOf properties", async () => {
+    const file = join(dir, "user-type-drift.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser() {",
+        "  return { id: '1', createdAt: '2024-01-01', name: 'Alice', email: 'a@b.com' };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "id",
+      expected: "integer",
+      found: "string",
+      severity: "warn",
+    });
+  });
+});
+
 describe("ScanOrchestrator — array response validation", () => {
   let dir: string;
 

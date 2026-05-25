@@ -9,6 +9,29 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(__dirname, "fixtures", "simple.openapi.yaml");
 const FIXTURE_EXT = join(__dirname, "fixtures", "extended.openapi.yaml");
 
+function makeDoc(
+  path: string,
+  method: "get" | "post" | "put",
+  schema: Record<string, unknown>,
+): OpenAPIDocument {
+  return {
+    openapi: "3.0.3",
+    info: { title: "Test", version: "1.0.0" },
+    paths: {
+      [path]: {
+        [method]: {
+          responses: {
+            "200": {
+              description: "OK",
+              content: { "application/json": { schema } },
+            },
+          },
+        },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+}
+
 describe("SchemaExtractor — simple fixture", () => {
   let schemas: Map<string, Record<string, unknown>>;
 
@@ -433,5 +456,365 @@ describe("SchemaExtractor — edge cases", () => {
     expect(schemas.get("GET /data:200")).toMatchObject({
       properties: { id: { type: "integer" } },
     });
+  });
+});
+
+describe("SchemaExtractor — allOf composition", () => {
+  const extractor = new SchemaExtractor();
+
+  it("merges required fields from all allOf subschemas", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          allOf: [
+            {
+              type: "object",
+              required: ["id"],
+              properties: { id: { type: "integer" } },
+            },
+            {
+              type: "object",
+              required: ["name"],
+              properties: { name: { type: "string" } },
+            },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(expect.arrayContaining(["id", "name"]));
+    expect(schema?.required).toHaveLength(2);
+  });
+
+  it("merges properties from all allOf subschemas", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          allOf: [
+            { type: "object", properties: { id: { type: "integer" } } },
+            { type: "object", properties: { name: { type: "string" } } },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.properties).toMatchObject({
+      id: { type: "integer" },
+      name: { type: "string" },
+    });
+  });
+
+  it("merges base schema fields with allOf subschema fields", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          type: "object",
+          required: ["id"],
+          properties: { id: { type: "integer" } },
+          allOf: [
+            { required: ["name"], properties: { name: { type: "string" } } },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(expect.arrayContaining(["id", "name"]));
+    expect(schema?.properties).toMatchObject({
+      id: { type: "integer" },
+      name: { type: "string" },
+    });
+  });
+
+  it("handles allOf where a subschema has no required array", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          allOf: [
+            { type: "object", properties: { id: { type: "integer" } } },
+            {
+              type: "object",
+              required: ["name"],
+              properties: { name: { type: "string" } },
+            },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(["name"]);
+    expect(schema?.properties).toMatchObject({ id: { type: "integer" } });
+  });
+
+  it("resolves nested allOf (allOf inside allOf)", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          allOf: [
+            {
+              allOf: [
+                { required: ["id"], properties: { id: { type: "integer" } } },
+                {
+                  required: ["role"],
+                  properties: { role: { type: "string" } },
+                },
+              ],
+            },
+            { required: ["name"], properties: { name: { type: "string" } } },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(
+      expect.arrayContaining(["id", "role", "name"]),
+    );
+  });
+
+  it("handles allOf with an empty subschema — contributes nothing", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          allOf: [
+            {},
+            { required: ["id"], properties: { id: { type: "integer" } } },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(["id"]);
+    expect(schema?.properties).toMatchObject({ id: { type: "integer" } });
+  });
+
+  it("later subschema property overrides earlier for same key (last wins)", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          allOf: [
+            { properties: { status: { type: "string" } } },
+            { properties: { status: { type: "boolean" } } },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    const props = schema?.properties as
+      | Record<string, { type: string }>
+      | undefined;
+    expect(props?.status?.type).toBe("boolean");
+  });
+
+  it("resolves nested property schemas with allOf", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          type: "object",
+          required: ["id", "address"],
+          properties: {
+            id: { type: "integer" },
+            address: {
+              allOf: [
+                {
+                  required: ["street"],
+                  properties: { street: { type: "string" } },
+                },
+                {
+                  required: ["city"],
+                  properties: { city: { type: "string" } },
+                },
+              ],
+            },
+          },
+        }),
+      )
+      .get("GET /users/{id}:200");
+    const addressSchema = (schema?.properties as Record<string, unknown>)
+      ?.address as Record<string, unknown> | undefined;
+    expect(addressSchema?.required).toEqual(
+      expect.arrayContaining(["street", "city"]),
+    );
+    expect(addressSchema?.properties).toMatchObject({
+      street: { type: "string" },
+      city: { type: "string" },
+    });
+  });
+});
+
+describe("SchemaExtractor — oneOf composition", () => {
+  const extractor = new SchemaExtractor();
+
+  it("required = intersection — only fields required in ALL variants are flagged", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          oneOf: [
+            {
+              type: "object",
+              required: ["id", "name"],
+              properties: { id: { type: "integer" }, name: { type: "string" } },
+            },
+            {
+              type: "object",
+              required: ["id", "email"],
+              properties: {
+                id: { type: "integer" },
+                email: { type: "string" },
+              },
+            },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(["id"]);
+  });
+
+  it("field required in only one variant is absent from merged required", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          oneOf: [
+            { required: ["id"], properties: { id: { type: "integer" } } },
+            { required: ["name"], properties: { name: { type: "string" } } },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    // id is required in variant 1 only, name in variant 2 only — intersection is empty
+    expect(schema?.required ?? []).toHaveLength(0);
+  });
+
+  it("oneOf with no required in any variant produces empty required", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          oneOf: [
+            { type: "object", properties: { id: { type: "integer" } } },
+            { type: "object", properties: { name: { type: "string" } } },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required ?? []).toHaveLength(0);
+    expect(schema?.type).toBe("object");
+  });
+
+  it("properties are the union of all variant properties", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          oneOf: [
+            { properties: { id: { type: "integer" } } },
+            { properties: { name: { type: "string" } } },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.properties).toMatchObject({
+      id: { type: "integer" },
+      name: { type: "string" },
+    });
+  });
+
+  it("single-variant oneOf uses that variant directly", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          oneOf: [
+            {
+              type: "object",
+              required: ["id"],
+              properties: { id: { type: "integer" } },
+            },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(["id"]);
+    expect(schema?.type).toBe("object");
+  });
+});
+
+describe("SchemaExtractor — anyOf / nullable", () => {
+  const extractor = new SchemaExtractor();
+
+  it("filters null variant — uses the remaining object schema", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          anyOf: [
+            {
+              type: "object",
+              required: ["id", "name"],
+              properties: { id: { type: "integer" }, name: { type: "string" } },
+            },
+            { type: "null" },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(["id", "name"]);
+    expect(schema?.type).toBe("object");
+  });
+
+  it("multiple non-null anyOf variants → intersection of required", () => {
+    const schema = extractor
+      .extract(
+        makeDoc("/users/{id}", "get", {
+          anyOf: [
+            {
+              required: ["id", "name"],
+              properties: { id: { type: "integer" }, name: { type: "string" } },
+            },
+            {
+              required: ["id", "email"],
+              properties: {
+                id: { type: "integer" },
+                email: { type: "string" },
+              },
+            },
+          ],
+        }),
+      )
+      .get("GET /users/{id}:200");
+    expect(schema?.required).toEqual(["id"]);
+  });
+
+  it("anyOf where all variants are null — stored as empty schema, produces no violations", () => {
+    const schemas = extractor.extract(
+      makeDoc("/items", "get", {
+        anyOf: [{ type: "null" }, { type: "null" }],
+      }),
+    );
+    // All variants filtered out → empty schema stored; validator finds no required → no violations
+    const schema = schemas.get("GET /items:200");
+    expect(schema?.required).toBeUndefined();
+    expect(schema?.properties).toBeUndefined();
+  });
+
+  it("request body with anyOf nullable resolves to the non-null schema", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "Test", version: "1.0.0" },
+      paths: {
+        "/users": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    anyOf: [
+                      {
+                        type: "object",
+                        required: ["name"],
+                        properties: { name: { type: "string" } },
+                      },
+                      { type: "null" },
+                    ],
+                  },
+                },
+              },
+            },
+            responses: { "201": { description: "Created" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const schema = new SchemaExtractor()
+      .extract(doc)
+      .get("POST /users:request");
+    expect(schema?.required).toEqual(["name"]);
   });
 });
