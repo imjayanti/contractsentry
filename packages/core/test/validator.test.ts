@@ -604,6 +604,169 @@ describe("ContractValidator — validateRequest malformed schema.required", () =
   });
 });
 
+describe("ContractValidator — nested object validation", () => {
+  const nestedSchema = {
+    type: "object",
+    required: ["id", "address"],
+    properties: {
+      id: { type: "integer" },
+      address: {
+        type: "object",
+        required: ["city", "zip"],
+        properties: {
+          city: { type: "string" },
+          zip: { type: "string" },
+        },
+      },
+    },
+  };
+
+  it("emits no violation when all nested required fields are present", () => {
+    expect(
+      validator.validate(
+        shape({
+          returnShape: {
+            id: "integer",
+            address: { city: "string", zip: "string" },
+          },
+        }),
+        nestedSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits error with dot-notation field name for missing nested required field", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "integer", address: { city: "string" } },
+      }),
+      nestedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "address.zip",
+      expected: "present",
+      found: "missing",
+      severity: "error",
+    });
+  });
+
+  it("emits warn with dot-notation field name for nested type mismatch", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: {
+          id: "integer",
+          address: { city: "integer", zip: "string" },
+        },
+      }),
+      nestedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "address.city",
+      expected: "string",
+      found: "integer",
+      severity: "warn",
+    });
+  });
+
+  it("emits violations for all missing nested required fields when nested object is empty", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: "integer", address: {} } }),
+      nestedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(2);
+    const fields = violations.map((v) => v.field);
+    expect(fields).toContain("address.city");
+    expect(fields).toContain("address.zip");
+  });
+
+  it("skips nested validation when nested schema has no required or properties", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: { id: "integer", address: { city: "string" } } }),
+        {
+          type: "object",
+          required: ["id", "address"],
+          properties: { id: { type: "integer" }, address: { type: "object" } },
+        },
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("validates deeply nested fields with multi-segment dot-notation", () => {
+    const deepSchema = {
+      type: "object",
+      required: ["meta"],
+      properties: {
+        meta: {
+          type: "object",
+          required: ["geo"],
+          properties: {
+            geo: {
+              type: "object",
+              required: ["lat"],
+              properties: { lat: { type: "number" } },
+            },
+          },
+        },
+      },
+    };
+    const violations = validator.validate(
+      shape({ returnShape: { meta: { geo: {} } } }),
+      deepSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "meta.geo.lat",
+      severity: "error",
+    });
+  });
+
+  it("top-level missing field still emits flat field name", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: "integer" } }),
+      nestedSchema,
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "address",
+      severity: "error",
+    });
+  });
+
+  it("emits warn when shape returns a nested object but spec declares a scalar type", () => {
+    const violations = validator.validate(
+      shape({
+        returnShape: { id: "integer", address: { city: "string" } },
+      }),
+      {
+        type: "object",
+        required: ["id", "address"],
+        properties: {
+          id: { type: "integer" },
+          address: { type: "string" },
+        },
+      },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "address",
+      expected: "string",
+      found: "object",
+      severity: "warn",
+    });
+  });
+});
+
 describe("ContractValidator — prototype-shadowing fields", () => {
   it("emits violation when required field shadows Object.prototype (e.g. hasOwnProperty)", () => {
     // 'hasOwnProperty' exists on Object.prototype; `in` would give a false negative

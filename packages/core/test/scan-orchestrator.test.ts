@@ -492,6 +492,117 @@ describe("ScanOrchestrator — status hint", () => {
   });
 });
 
+describe("ScanOrchestrator — nested object validation", () => {
+  let dir: string;
+  let spec: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "csentry-nested-test-"));
+    spec = join(dir, "nested.yaml");
+    await writeFile(
+      spec,
+      [
+        'openapi: "3.0.3"',
+        'info: { title: "Nested API", version: "1.0.0" }',
+        "paths:",
+        "  /users/{id}:",
+        "    get:",
+        "      responses:",
+        '        "200":',
+        '          description: "OK"',
+        "          content:",
+        "            application/json:",
+        "              schema:",
+        "                type: object",
+        "                required: [id, address]",
+        "                properties:",
+        "                  id:",
+        "                    type: integer",
+        "                  address:",
+        "                    type: object",
+        "                    required: [city, zip]",
+        "                    properties:",
+        "                      city:",
+        "                        type: string",
+        "                      zip:",
+        "                        type: string",
+      ].join("\n"),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it("emits violation for missing nested required field (address.zip)", async () => {
+    const file = join(dir, "user.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser() {",
+        "  return { id: 1, address: { city: 'NYC' } };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      endpoint: "GET /users/{id}",
+      field: "address.zip",
+      expected: "present",
+      found: "missing",
+      severity: "error",
+    });
+  });
+
+  it("emits no violation when all nested required fields are present", async () => {
+    const file = join(dir, "user-full.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser() {",
+        "  return { id: 1, address: { city: 'NYC', zip: '10001' } };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(0);
+  });
+
+  it("emits warn for nested field type mismatch", async () => {
+    const file = join(dir, "user-type-drift.ts");
+    await writeFile(
+      file,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser() {",
+        "  return { id: 1, address: { city: 123, zip: '10001' } };",
+        "}",
+      ].join("\n"),
+    );
+    const violations = await orchestrator.scan({
+      specPath: spec,
+      filePaths: [file],
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      endpoint: "GET /users/{id}",
+      field: "address.city",
+      expected: "string",
+      found: "integer",
+      severity: "warn",
+    });
+  });
+});
+
 describe("ScanOrchestrator — request body validation", () => {
   let dir: string;
 

@@ -510,6 +510,67 @@ describe("TreeSitterTypeScriptAnalyzer — status hint", () => {
   });
 });
 
+describe("TreeSitterTypeScriptAnalyzer — nested object extraction", () => {
+  const analyzer = new TreeSitterTypeScriptAnalyzer();
+
+  it("extracts nested object as a Record (not 'object' string)", () => {
+    const shapes = analyzer.analyze(
+      `export function f() { return { address: { city: "NYC", zip: "10001" } }; }`,
+    );
+    expect(shapes[0]?.returnShape?.address).toEqual({
+      city: "string",
+      zip: "string",
+    });
+  });
+
+  it("handles mixed flat and nested fields", () => {
+    const shapes = analyzer.analyze(
+      `export function f() { return { id: 1, address: { city: "NYC" } }; }`,
+    );
+    expect(shapes[0]?.returnShape).toEqual({
+      id: "integer",
+      address: { city: "string" },
+    });
+  });
+
+  it("handles deeply nested objects", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { a: { b: { c: true } } }; }",
+    );
+    expect(shapes[0]?.returnShape).toEqual({ a: { b: { c: "boolean" } } });
+  });
+
+  it("extracts nested object inside array literal — uses first element's shape", () => {
+    const shapes = analyzer.analyze(
+      `export function f() { return [{ id: 1, meta: { tag: "x" } }]; }`,
+    );
+    expect(shapes[0]?.returnShape).toEqual({
+      id: "integer",
+      meta: { tag: "string" },
+    });
+  });
+
+  it("nested object with mixed literal and unknown values", () => {
+    const shapes = analyzer.analyze(
+      `export function f() { return { address: { city: "NYC", code: zipCode } }; }`,
+    );
+    expect(shapes[0]?.returnShape?.address).toEqual({
+      city: "string",
+      code: null,
+    });
+  });
+
+  it("skips computed property name keys — only static identifier keys are captured", () => {
+    const shapes = analyzer.analyze(
+      "export function f() { return { [someVar]: 1, id: 2 }; }",
+    );
+    expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
+    expect(Object.keys(shapes[0]?.returnShape ?? {})).not.toContain(
+      "[someVar]",
+    );
+  });
+});
+
 describe("TreeSitterTypeScriptAnalyzer — paramShape extraction", () => {
   const analyzer = new TreeSitterTypeScriptAnalyzer();
 

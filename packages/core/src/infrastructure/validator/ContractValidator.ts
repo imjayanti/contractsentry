@@ -1,4 +1,4 @@
-import type { FunctionShape } from "../../domain/FunctionShape.js";
+import type { FieldShape, FunctionShape } from "../../domain/FunctionShape.js";
 import type { IValidator } from "../../domain/IValidator.js";
 import type { Violation } from "../../domain/Violation.js";
 
@@ -24,10 +24,11 @@ export class ContractValidator implements IValidator {
   }
 
   private checkFields(
-    shapeFields: Record<string, string | null>,
+    shapeFields: Record<string, FieldShape>,
     shape: FunctionShape,
     schema: Record<string, unknown>,
     file: string,
+    fieldPrefix = "",
   ): Violation[] {
     const required = Array.isArray(schema.required)
       ? [
@@ -39,35 +40,65 @@ export class ContractValidator implements IValidator {
     const violations: Violation[] = [];
 
     for (const field of required) {
+      const fullField = fieldPrefix + field;
       if (!Object.hasOwn(shapeFields, field)) {
         violations.push({
           file,
           line: shape.line,
           endpoint: shape.endpointGuess ?? "unknown",
-          field,
+          field: fullField,
           expected: "present",
           found: "missing",
           severity: "error",
           suppressed: shape.suppressed,
         });
       } else {
-        const inferredType = shapeFields[field];
-        const specType = this.specTypeFor(schema, field);
-        if (
-          inferredType !== null &&
-          specType !== null &&
-          !this.typesCompatible(inferredType, specType)
-        ) {
-          violations.push({
-            file,
-            line: shape.line,
-            endpoint: shape.endpointGuess ?? "unknown",
-            field,
-            expected: specType,
-            found: inferredType,
-            severity: "warn",
-            suppressed: shape.suppressed,
-          });
+        const inferredValue = shapeFields[field];
+        if (typeof inferredValue === "object" && inferredValue !== null) {
+          const nestedSchema = this.fieldSchemaFor(schema, field);
+          if (nestedSchema !== null) {
+            const schemaType = this.typeFromSchema(nestedSchema);
+            if (schemaType !== null && schemaType !== "object") {
+              violations.push({
+                file,
+                line: shape.line,
+                endpoint: shape.endpointGuess ?? "unknown",
+                field: fullField,
+                expected: schemaType,
+                found: "object",
+                severity: "warn",
+                suppressed: shape.suppressed,
+              });
+            } else {
+              violations.push(
+                ...this.checkFields(
+                  inferredValue,
+                  shape,
+                  nestedSchema,
+                  file,
+                  `${fullField}.`,
+                ),
+              );
+            }
+          }
+        } else {
+          const specType = this.specTypeFor(schema, field);
+          if (
+            inferredValue !== null &&
+            specType !== null &&
+            !this.typesCompatible(inferredValue, specType)
+          ) {
+            violations.push({
+              file,
+              line: shape.line,
+              endpoint: shape.endpointGuess ?? "unknown",
+              field: fullField,
+              expected: specType,
+              found: inferredValue,
+              severity: "warn",
+              suppressed: shape.suppressed,
+            });
+          }
         }
       }
     }
@@ -75,22 +106,34 @@ export class ContractValidator implements IValidator {
     return violations;
   }
 
-  private specTypeFor(
+  private fieldSchemaFor(
     schema: Record<string, unknown>,
     field: string,
-  ): string | null {
+  ): Record<string, unknown> | null {
     const { properties } = schema;
     if (typeof properties !== "object" || properties === null) return null;
     const fieldSchema = (properties as Record<string, unknown>)[field];
     if (typeof fieldSchema !== "object" || fieldSchema === null) return null;
-    const { type } = fieldSchema as Record<string, unknown>;
+    return fieldSchema as Record<string, unknown>;
+  }
+
+  private specTypeFor(
+    schema: Record<string, unknown>,
+    field: string,
+  ): string | null {
+    const fieldSchema = this.fieldSchemaFor(schema, field);
+    return fieldSchema !== null ? this.typeFromSchema(fieldSchema) : null;
+  }
+
+  private typeFromSchema(schema: Record<string, unknown>): string | null {
+    const { type } = schema;
     if (typeof type === "string") return type;
     // OpenAPI 3.1 allows `type: ["string", "null"]` for nullable fields — use first non-null entry
     if (Array.isArray(type)) {
-      const primary = type.find(
-        (t): t is string => typeof t === "string" && t !== "null",
+      return (
+        type.find((t): t is string => typeof t === "string" && t !== "null") ??
+        null
       );
-      return primary ?? null;
     }
     return null;
   }

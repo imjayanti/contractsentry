@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import Parser from "tree-sitter";
 import type { SyntaxNode } from "tree-sitter";
-import type { FunctionShape } from "../../domain/FunctionShape.js";
+import type { FieldShape, FunctionShape } from "../../domain/FunctionShape.js";
 
 // tree-sitter-typescript ships CJS with no ESM wrapper — use createRequire
 const require = createRequire(import.meta.url);
@@ -12,7 +12,7 @@ const { typescript } = require("tree-sitter-typescript") as {
 const ROUTE_ANNOTATION_RE = /\/\/\s*@route\s+(\S+\s+\S+)(?:\s+(\d{3}))?/;
 
 type ShapeResult = {
-  returnShape: Record<string, string | null> | null;
+  returnShape: Record<string, FieldShape> | null;
   isDynamic: boolean;
 };
 
@@ -106,7 +106,7 @@ export class TreeSitterTypeScriptAnalyzer {
     const body = decl.childForFieldName("body");
     const { returnShape, isDynamic } = body
       ? this.shapeFromBlock(body)
-      : { returnShape: null, isDynamic: false };
+      : EMPTY_SHAPE;
 
     const paramShape = this.paramShapeFromParams(
       decl.childForFieldName("parameters"),
@@ -144,7 +144,7 @@ export class TreeSitterTypeScriptAnalyzer {
     const body = value.childForFieldName("body");
     const { returnShape, isDynamic } = body
       ? this.shapeFromArrowBody(body)
-      : { returnShape: null, isDynamic: false };
+      : EMPTY_SHAPE;
 
     // arrow_function exposes either "parameters" (formal_parameters) or
     // "parameter" (single identifier, no parens: `x => ...`)
@@ -199,9 +199,7 @@ export class TreeSitterTypeScriptAnalyzer {
     return this.nodeToShapeResult(body);
   }
 
-  private shapeFromNode(
-    node: SyntaxNode,
-  ): Record<string, string | null> | null {
+  private shapeFromNode(node: SyntaxNode): Record<string, FieldShape> | null {
     if (node.type === "object") return this.keysFromObject(node);
 
     if (node.type === "array") {
@@ -212,13 +210,13 @@ export class TreeSitterTypeScriptAnalyzer {
     return null;
   }
 
-  private keysFromObject(obj: SyntaxNode): Record<string, string | null> {
-    const result: Record<string, string | null> = {};
+  private keysFromObject(obj: SyntaxNode): Record<string, FieldShape> {
+    const result: Record<string, FieldShape> = {};
     for (const child of obj.namedChildren) {
       if (child.type === "pair") {
         const key = child.childForFieldName("key");
         const value = child.childForFieldName("value");
-        if (key)
+        if (key && key.type !== "computed_property_name")
           result[key.text] = value ? this.typeFromValueNode(value) : null;
       } else if (child.type === "shorthand_property_identifier") {
         result[child.text] = null;
@@ -228,7 +226,7 @@ export class TreeSitterTypeScriptAnalyzer {
     return result;
   }
 
-  private typeFromValueNode(node: SyntaxNode): string | null {
+  private typeFromValueNode(node: SyntaxNode): FieldShape {
     switch (node.type) {
       case "number":
         return Number.isInteger(Number(node.text)) ? "integer" : "number";
@@ -246,7 +244,7 @@ export class TreeSitterTypeScriptAnalyzer {
       case "false":
         return "boolean";
       case "object":
-        return "object";
+        return this.keysFromObject(node);
       case "array":
         return "array";
       default:
