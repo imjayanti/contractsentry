@@ -979,4 +979,52 @@ describe("ContractValidator — enum validation", () => {
       severity: "warn",
     });
   });
+
+  it("emits no enum violation when spec enum array is empty", () => {
+    expect(
+      validator.validate(
+        shape({ returnShape: { status: '"anything"', role: '"admin"' } }),
+        {
+          type: "object",
+          required: ["status", "role"],
+          properties: {
+            status: { type: "string", enum: [] },
+            role: { type: "string", enum: ["admin", "user"] },
+          },
+        },
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("ContractValidator — enum validation on request params", () => {
+  const requestSchema = {
+    type: "object",
+    required: ["role"],
+    properties: {
+      role: { type: "string", enum: ["admin", "user", "guest"] },
+    },
+  };
+
+  it("emits no violation when request param literal is in the enum", () => {
+    expect(
+      validator.validateRequest(
+        shape({ paramShape: { role: "string" } }),
+        requestSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits no enum violation for request params — param types are type names not literals", () => {
+    // paramShape values are type annotation names ("string", "number") — isStringLiteral is false for these
+    expect(
+      validator.validateRequest(
+        shape({ paramShape: { role: "string" } }),
+        requestSchema,
+        "src/routes/users.ts",
+      ),
+    ).toEqual([]);
+  });
 });

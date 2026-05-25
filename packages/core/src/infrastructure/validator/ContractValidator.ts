@@ -1,4 +1,8 @@
-import type { FieldShape, FunctionShape } from "../../domain/FunctionShape.js";
+import type {
+  FieldShape,
+  FieldShapeRecord,
+  FunctionShape,
+} from "../../domain/FunctionShape.js";
 import type { IValidator } from "../../domain/IValidator.js";
 import type { Severity, Violation } from "../../domain/Violation.js";
 
@@ -24,7 +28,7 @@ export class ContractValidator implements IValidator {
   }
 
   private checkFields(
-    shapeFields: Record<string, FieldShape>,
+    shapeFields: FieldShapeRecord,
     shape: FunctionShape,
     schema: Record<string, unknown>,
     file: string,
@@ -87,12 +91,12 @@ export class ContractValidator implements IValidator {
         const fieldSchema = this.fieldSchemaFor(schema, field);
         const specType =
           fieldSchema !== null ? this.typeFromSchema(fieldSchema) : null;
-        const hasTypeMismatch =
+
+        if (
           inferredValue !== null &&
           specType !== null &&
-          !this.typesCompatible(inferredValue, specType);
-
-        if (hasTypeMismatch) {
+          !this.typesCompatible(inferredValue, specType)
+        ) {
           violations.push(
             this.buildViolation(
               shape,
@@ -111,20 +115,20 @@ export class ContractValidator implements IValidator {
             fieldSchema !== null
               ? this.enumValuesFromSchema(fieldSchema)
               : null;
-          if (
-            enumValues !== null &&
-            !enumValues.includes(this.stripQuotes(inferredValue))
-          ) {
-            violations.push(
-              this.buildViolation(
-                shape,
-                file,
-                fullField,
-                "warn",
-                `one of [${enumValues.join(", ")}]`,
-                this.stripQuotes(inferredValue),
-              ),
-            );
+          if (enumValues !== null) {
+            const literal = this.stripQuotes(inferredValue);
+            if (!enumValues.includes(literal)) {
+              violations.push(
+                this.buildViolation(
+                  shape,
+                  file,
+                  fullField,
+                  "warn",
+                  `one of [${enumValues.join(", ")}]`,
+                  literal,
+                ),
+              );
+            }
           }
         }
       }
