@@ -1,7 +1,11 @@
 export type { Violation, Severity } from "./domain/Violation.js";
 export type { Endpoint } from "./domain/Endpoint.js";
 export { normalise } from "./domain/Endpoint.js";
-export type { FunctionShape } from "./domain/FunctionShape.js";
+export type {
+  FunctionShape,
+  FieldShape,
+  FieldShapeRecord,
+} from "./domain/FunctionShape.js";
 export {
   SpecLoadError,
   AnalysisError,
