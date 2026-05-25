@@ -1,5 +1,12 @@
 # @contractsentry/core
 
+## 0.2.0
+
+### Minor Changes
+
+- c0396c9: Add dynamic return detection, request body validation, and exit-code refinement
+- fabbfc4: Add field type validation — emit warn when inferred literal or annotation type is incompatible with the OpenAPI property schema type
+
 ## 0.1.0
 
 ### Minor Changes
