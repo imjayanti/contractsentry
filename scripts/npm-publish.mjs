@@ -56,8 +56,10 @@ for (const dir of PACKAGES) {
   }
 
   try {
+    execSync("npm config list", { cwd: absDir, stdio: "inherit" });
+    console.log("ACTIONS_ID_TOKEN_REQUEST_URL:", process.env.ACTIONS_ID_TOKEN_REQUEST_URL ? "SET" : "NOT SET");
     // --provenance explicitly triggers the trusted-publisher OIDC exchange
-    execSync("npm publish --access public --provenance", {
+    execSync("npm publish --access public --provenance --loglevel verbose", {
       cwd: absDir,
       stdio: "inherit",
     });
