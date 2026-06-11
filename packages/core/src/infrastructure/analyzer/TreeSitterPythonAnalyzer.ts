@@ -56,8 +56,10 @@ export class TreeSitterPythonAnalyzer {
 
   private fromDecoratedDef(node: SyntaxNode): FunctionShape | null {
     const suppressed = this.isSuppressed(node);
-    const decorator = node.children.find((c) => c.type === "decorator");
-    const funcDef = node.children.find((c) => c.type === "function_definition");
+    const decorator = node.children.find((child) => child.type === "decorator");
+    const funcDef = node.children.find(
+      (child) => child.type === "function_definition",
+    );
     if (!decorator || !funcDef) return null;
 
     const endpointGuess = this.extractEndpoint(decorator);
@@ -93,7 +95,7 @@ export class TreeSitterPythonAnalyzer {
   }
 
   private extractEndpoint(decorator: SyntaxNode): string | null {
-    const callNode = decorator.children.find((c) => c.type === "call");
+    const callNode = decorator.children.find((child) => child.type === "call");
     if (!callNode) return null;
 
     const funcNode = callNode.childForFieldName("function");

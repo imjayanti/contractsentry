@@ -27,11 +27,11 @@ function getPythonExecutable(): string {
 function spawnPython(payload: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(getPythonExecutable(), ["-m", "contractsentry_ai"]);
-    const out: Buffer[] = [];
-    const err: Buffer[] = [];
+    const outputChunks: Buffer[] = [];
+    const errorChunks: Buffer[] = [];
 
-    child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => err.push(chunk));
+    child.stdout.on("data", (chunk: Buffer) => outputChunks.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => errorChunks.push(chunk));
     child.stdin.on("error", reject);
     child.stdin.write(payload, "utf-8");
     child.stdin.end();
@@ -40,10 +40,13 @@ function spawnPython(payload: string): Promise<string> {
     child.on("close", (code) => {
       if (code !== 0) {
         reject(
-          new SubprocessError(code ?? 1, Buffer.concat(err).toString("utf-8")),
+          new SubprocessError(
+            code ?? 1,
+            Buffer.concat(errorChunks).toString("utf-8"),
+          ),
         );
       } else {
-        resolve(Buffer.concat(out).toString("utf-8"));
+        resolve(Buffer.concat(outputChunks).toString("utf-8"));
       }
     });
   });

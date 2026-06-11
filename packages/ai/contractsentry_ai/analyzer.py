@@ -70,7 +70,7 @@ def analyze(raw_payload: dict) -> AnalysisResult:
             items: Sequence[object] = (
                 raw_violations if isinstance(raw_violations, list) else []
             )
-            violations = [msgspec.convert(v, Violation) for v in items]
+            violations = [msgspec.convert(item, Violation) for item in items]
             return AnalysisResult(violations=violations)
 
     return AnalysisResult(violations=[])

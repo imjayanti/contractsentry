@@ -142,21 +142,23 @@ export class ScanOrchestrator {
     file: string,
     line: number,
   ): Violation[] {
-    const seen = new Set(existing.map((v) => `${v.endpoint}::${v.field}`));
+    const seen = new Set(
+      existing.map((violation) => `${violation.endpoint}::${violation.field}`),
+    );
     const added: Violation[] = [];
-    for (const av of aiViolations) {
-      const key = `${endpoint}::${av.field}`;
+    for (const aiViolation of aiViolations) {
+      const key = `${endpoint}::${aiViolation.field}`;
       if (seen.has(key)) continue;
       added.push({
         file,
         line,
         endpoint,
-        field: av.field,
-        expected: av.expected,
-        found: av.found,
+        field: aiViolation.field,
+        expected: aiViolation.expected,
+        found: aiViolation.found,
         severity: "error",
         suppressed: false,
-        explanation: av.explanation,
+        explanation: aiViolation.explanation,
       });
     }
     return added;

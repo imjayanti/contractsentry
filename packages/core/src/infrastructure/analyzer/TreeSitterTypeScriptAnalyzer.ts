@@ -248,7 +248,9 @@ export class TreeSitterTypeScriptAnalyzer {
     if (node.type === "object") return this.keysFromObject(node);
 
     if (node.type === "array") {
-      const firstObj = node.namedChildren.find((c) => c.type === "object");
+      const firstObj = node.namedChildren.find(
+        (child) => child.type === "object",
+      );
       return firstObj ? this.keysFromObject(firstObj) : null;
     }
 

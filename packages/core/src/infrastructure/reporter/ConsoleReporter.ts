@@ -7,13 +7,13 @@ export class ConsoleReporter implements IReporter {
   ) {}
 
   report(violations: Violation[]): void {
-    const actionable = violations.filter((v) => !v.suppressed);
-    for (const v of actionable) {
+    const actionable = violations.filter((violation) => !violation.suppressed);
+    for (const violation of actionable) {
       this.writeLine(
-        `${v.file}:${v.line}  ${v.severity}  ${v.endpoint}  field "${v.field}" expected ${v.expected}, found ${v.found}`,
+        `${violation.file}:${violation.line}  ${violation.severity}  ${violation.endpoint}  field "${violation.field}" expected ${violation.expected}, found ${violation.found}`,
       );
-      if (v.explanation) {
-        this.writeLine(`  → ${v.explanation}`);
+      if (violation.explanation) {
+        this.writeLine(`  → ${violation.explanation}`);
       }
     }
     if (actionable.length > 0) {

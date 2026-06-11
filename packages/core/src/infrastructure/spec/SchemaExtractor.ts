@@ -111,8 +111,8 @@ export class SchemaExtractor {
     if (Array.isArray(schema.allOf)) {
       const { allOf, ...rest } = schema;
       const base = this.flattenKeywords(rest as SchemaObject);
-      const subschemas = (allOf as SchemaObject[]).map((s) =>
-        this.flattenKeywords(s),
+      const subschemas = (allOf as SchemaObject[]).map((subschema) =>
+        this.flattenKeywords(subschema),
       );
       return this.mergeSchemas([base, ...subschemas]);
     }
@@ -129,8 +129,8 @@ export class SchemaExtractor {
   }
 
   private resolveVariants(variants: SchemaObject[]): SchemaObject {
-    const candidates = this.filterNullVariants(variants).map((s) =>
-      this.flattenKeywords(s),
+    const candidates = this.filterNullVariants(variants).map((variant) =>
+      this.flattenKeywords(variant),
     );
     if (candidates.length === 0) return {};
     if (candidates.length === 1) return candidates[0];
@@ -145,8 +145,8 @@ export class SchemaExtractor {
 
     for (const schema of schemas) {
       if (Array.isArray(schema.required)) {
-        for (const f of schema.required) {
-          if (typeof f === "string") required.add(f);
+        for (const requiredField of schema.required) {
+          if (typeof requiredField === "string") required.add(requiredField);
         }
       }
       if (typeof schema.properties === "object" && schema.properties !== null) {
@@ -170,10 +170,12 @@ export class SchemaExtractor {
 
   private intersectSchemas(schemas: SchemaObject[]): SchemaObject {
     const requiredSets = schemas.map(
-      (s) =>
+      (subschema) =>
         new Set(
-          Array.isArray(s.required)
-            ? s.required.filter((f): f is string => typeof f === "string")
+          Array.isArray(subschema.required)
+            ? subschema.required.filter(
+                (item): item is string => typeof item === "string",
+              )
             : [],
         ),
     );
@@ -191,17 +193,21 @@ export class SchemaExtractor {
 
     // Preserve type only when all variants agree (e.g. all "object")
     const types = schemas
-      .map((s) => (typeof s.type === "string" ? s.type : null))
-      .filter((t): t is string => t !== null);
+      .map((subschema) =>
+        typeof subschema.type === "string" ? subschema.type : null,
+      )
+      .filter((typeEntry): typeEntry is string => typeEntry !== null);
     const sharedType =
       types.length === schemas.length && new Set(types).size === 1
         ? types[0]
         : undefined;
 
     // Union enum values from all variants — any value allowed by any variant is valid
-    const allEnumValues = schemas.flatMap((s) =>
-      Array.isArray(s.enum)
-        ? s.enum.filter((v): v is string => typeof v === "string")
+    const allEnumValues = schemas.flatMap((subschema) =>
+      Array.isArray(subschema.enum)
+        ? subschema.enum.filter(
+            (enumEntry): enumEntry is string => typeof enumEntry === "string",
+          )
         : [],
     );
     const unionEnum =
@@ -217,11 +223,11 @@ export class SchemaExtractor {
 
   private filterNullVariants(schemas: SchemaObject[]): SchemaObject[] {
     return schemas.filter(
-      (s) =>
+      (candidate) =>
         !(
-          s.type === "null" &&
-          s.properties === undefined &&
-          s.required === undefined
+          candidate.type === "null" &&
+          candidate.properties === undefined &&
+          candidate.required === undefined
         ),
     );
   }

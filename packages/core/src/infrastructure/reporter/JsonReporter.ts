@@ -8,7 +8,7 @@ export class JsonReporter implements IReporter {
   ) {}
 
   report(violations: Violation[]): void {
-    const actionable = violations.filter((v) => !v.suppressed);
+    const actionable = violations.filter((violation) => !violation.suppressed);
     this.write(JSON.stringify({ violations: actionable }));
   }
 }

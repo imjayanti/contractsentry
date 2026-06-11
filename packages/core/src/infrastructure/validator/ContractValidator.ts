@@ -37,7 +37,9 @@ export class ContractValidator implements IValidator {
     const required = Array.isArray(schema.required)
       ? [
           ...new Set(
-            schema.required.filter((f): f is string => typeof f === "string"),
+            schema.required.filter(
+              (item): item is string => typeof item === "string",
+            ),
           ),
         ]
       : [];
@@ -174,8 +176,10 @@ export class ContractValidator implements IValidator {
     // OpenAPI 3.1 allows `type: ["string", "null"]` for nullable fields — use first non-null entry
     if (Array.isArray(type)) {
       return (
-        type.find((t): t is string => typeof t === "string" && t !== "null") ??
-        null
+        type.find(
+          (typeEntry): typeEntry is string =>
+            typeof typeEntry === "string" && typeEntry !== "null",
+        ) ?? null
       );
     }
     return null;
@@ -204,7 +208,9 @@ export class ContractValidator implements IValidator {
   ): string[] | null {
     const { enum: enumArr } = schema;
     if (!Array.isArray(enumArr)) return null;
-    const values = enumArr.filter((v): v is string => typeof v === "string");
+    const values = enumArr.filter(
+      (enumEntry): enumEntry is string => typeof enumEntry === "string",
+    );
     return values.length > 0 ? values : null;
   }
 }

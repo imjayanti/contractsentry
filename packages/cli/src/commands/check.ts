@@ -76,8 +76,10 @@ export async function runCheck(
   const violations =
     ignorePatterns.length > 0
       ? allViolations.filter(
-          (v) =>
-            !ignorePatterns.some((p) => matchesGlob(relative(cwd, v.file), p)),
+          (violation) =>
+            !ignorePatterns.some((pattern) =>
+              matchesGlob(relative(cwd, violation.file), pattern),
+            ),
         )
       : allViolations;
 
