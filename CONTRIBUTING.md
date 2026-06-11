@@ -30,11 +30,17 @@ bash scripts/init.sh
 # Build all packages
 pnpm build
 
-# Run all tests
+# Run all TypeScript/CLI tests
 pnpm test
 
-# Lint and typecheck
+# Run Python AI module tests
+cd packages/ai && uv run pytest tests/ -v
+
+# Lint and typecheck (TypeScript)
 pnpm turbo lint typecheck
+
+# Lint and typecheck (Python)
+cd packages/ai && uvx ruff check contractsentry_ai/ && uv run ty check contractsentry_ai/
 
 # Format (TypeScript / JSON)
 pnpm format
@@ -48,7 +54,8 @@ packages/
     src/
       domain/               — Violation, FunctionShape, Errors, port interfaces
       infrastructure/
-        analyzer/           — TreeSitterTypeScriptAnalyzer, FileCodeAnalyzer
+        analyzer/           — TreeSitterTypeScriptAnalyzer, TreeSitterPythonAnalyzer,
+        |                     FileCodeAnalyzer, AiBridgeAnalyzer
         config/             — CsentryConfigLoader
         reporter/           — ConsoleReporter
         scanner/            — ScanOrchestrator
@@ -59,6 +66,15 @@ packages/
       bin.ts                — Commander entry point
       commands/
         check.ts            — runCheck logic (injectable deps for testing)
+  ai/                       — contractsentry-ai Python module
+    contractsentry_ai/
+      analyzer.py           — msgspec structs + Anthropic tool use
+      prompts.py            — prompt builder + report_violations tool definition
+      __main__.py           — stdin/stdout subprocess entrypoint
+    tests/
+      test_analyzer.py      — pytest suite with mocked Anthropic responses
+  action/
+    action.yml              — GitHub Action composite wrapping csentry check
 
 .github/
   workflows/
@@ -67,6 +83,7 @@ packages/
 
 examples/
   petstore/                 — OpenAPI spec + TypeScript routes used as test fixtures
+  fastapi-demo/             — OpenAPI spec + FastAPI routes used as Python test fixtures
 
 scripts/
   init.sh                   — one-shot dev environment setup
@@ -74,13 +91,15 @@ scripts/
 
 ## Pre-commit Hooks
 
-`lefthook.yml` runs the following checks on every commit:
+`lefthook.yml` runs the following checks in parallel on every commit:
 
 | Hook | Glob | What it does |
 |------|------|--------------|
 | `biome-check` | `*.{ts,tsx,js,json}` | Lint + format TypeScript/JSON, auto-fixes staged files |
-| `ty-check` | `*.py` | Type-check Python with `ty` |
-| `ruff-check` | `*.py` | Lint + format Python, auto-fixes staged files |
+| `ty-check` | `packages/ai/**/*.py` | Type-check Python with `ty` (uses `packages/ai` venv) |
+| `ruff-check` | `packages/ai/**/*.py` | Lint + format Python, auto-fixes staged files |
+| `test` | always | Runs `pnpm turbo test` (all TypeScript/CLI tests) |
+| `pytest` | `packages/ai/**/*.py` | Runs `pytest tests/` in the AI module |
 
 ## Making Changes
 
@@ -100,8 +119,9 @@ Two workflows run automatically:
 | `ci.yml` | push + PR to `main` | Installs, builds, tests, lints, typechecks |
 | `release.yml` | push to `main` | Opens a Version PR when changesets are present; publishes to npm when that PR merges |
 
-The release workflow requires one repository secret to be configured in GitHub:
+The release workflow requires these repository secrets:
 - `NPM_TOKEN` — npm access token with publish rights (`GITHUB_TOKEN` is provided automatically)
+- `ANTHROPIC_API_KEY` — required only for running `csentry check --ai` in CI
 
 ## Changesets
 

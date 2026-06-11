@@ -38,7 +38,8 @@ csentry check [options]
 | Option | Description |
 |--------|-------------|
 | `--spec <path>` | Path to your OpenAPI spec (YAML or JSON) |
-| `--files <glob>` | Glob pattern of TypeScript files to scan |
+| `--files <glob>` | Glob pattern of TypeScript/Python files to scan |
+| `--ai` | Enable AI-powered drift detection via Anthropic (requires `ANTHROPIC_API_KEY`) |
 
 Options can also be set in a `csentry.config.ts` at the project root, which supports multiple glob patterns:
 
@@ -54,7 +55,7 @@ When a config file is present, running `csentry check` with no flags is sufficie
 
 ### Annotating your code
 
-ContractSentry reads `// @route <METHOD> <PATH>` comments to map a function to an OpenAPI endpoint:
+**TypeScript** — ContractSentry reads `// @route <METHOD> <PATH>` comments:
 
 ```typescript
 // @route GET /users/{id}
@@ -68,6 +69,18 @@ export function createUser(name: string) { // ← missing `email` param — requ
 }
 ```
 
+**Python (FastAPI / Flask)** — ContractSentry reads route decorators directly:
+
+```python
+@router.get("/users/{user_id}")
+async def get_user(user_id: int):
+    return {"id": user_id, "name": "Alice"}  # ← missing `email`
+
+@router.post("/users")
+async def create_user(name: str, email: str):
+    return {"id": "1", "name": name}  # ← id should be integer, email missing
+```
+
 Functions that return a non-static expression (a variable, function call, etc.) receive a `warn` instead of being skipped silently:
 
 ```typescript
@@ -77,7 +90,7 @@ export function getUser(id: number) {
 }
 ```
 
-To opt a specific function out of validation entirely, add `// csentry-ignore` on the line before the function:
+To opt a specific function out of validation entirely, add a suppression comment on the line before the function:
 
 ```typescript
 // csentry-ignore
@@ -85,6 +98,23 @@ export function deleteUser(id: number) {
   return { deleted: id };
 }
 ```
+
+```python
+# csentry-ignore
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: int):
+    return {"deleted": user_id}
+```
+
+### AI-powered detection
+
+Pass `--ai` to layer Anthropic LLM analysis on top of static checks. The AI catches semantic drift that heuristics miss — wrong field semantics, incorrect types on dynamic values, and constraint violations:
+
+```bash
+ANTHROPIC_API_KEY=sk-... csentry check --spec openapi.yaml --files 'src/**/*.ts' --ai
+```
+
+AI violations are deduplicated against static findings so you never see the same issue twice.
 
 ### What it checks
 
@@ -117,12 +147,28 @@ A clean scan produces no output and exits `0`.
 
 ## GitHub Actions
 
+Use the official composite action:
+
 ```yaml
-- name: Check contracts
-  run: npx @contractsentry/cli check
+- uses: imjayanti/contractsentry/packages/action@main
+  with:
+    spec: openapi.yaml
+    files: src/**/*.ts
 ```
 
-Or with explicit options (no config file needed):
+With AI detection:
+
+```yaml
+- uses: imjayanti/contractsentry/packages/action@main
+  with:
+    spec: openapi.yaml
+    files: src/**/*.ts
+    ai: "true"
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+Or invoke the CLI directly:
 
 ```yaml
 - name: Check contracts
@@ -136,6 +182,7 @@ Or with explicit options (no config file needed):
 | Language   | Framework Support         | Status    |
 |------------|--------------------------|-----------|
 | TypeScript | Express, Fastify, NestJS | ✅ v0.1.0 |
+| Python     | FastAPI, Flask           | ✅ v0.2.0 |
 
 ---
 
@@ -145,6 +192,8 @@ Or with explicit options (no config file needed):
 |---------|-------------|
 | [`@contractsentry/cli`](packages/cli) | `csentry` CLI — the main entry point |
 | [`@contractsentry/core`](packages/core) | Analyzers, validator, reporter, orchestrator |
+| [`contractsentry-ai`](packages/ai) | Python module — LLM drift detection via Anthropic tool use |
+| [`packages/action`](packages/action) | GitHub Action composite wrapping `csentry check` |
 
 ---
 
