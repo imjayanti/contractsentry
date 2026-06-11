@@ -1,4 +1,4 @@
-import type { Violation } from "@contractsentry/core";
+import { JsonReporter, type Violation } from "@contractsentry/core";
 import { describe, expect, it, vi } from "vitest";
 import { type CheckDeps, runCheck } from "../src/commands/check.js";
 
@@ -29,7 +29,7 @@ function violation(overrides: Partial<Violation> = {}): Violation {
 describe("runCheck — exit codes", () => {
   it("returns 0 when orchestrator returns no violations", async () => {
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps(),
     );
     expect(code).toBe(0);
@@ -38,7 +38,7 @@ describe("runCheck — exit codes", () => {
   it("returns 1 when there is at least one non-suppressed violation", async () => {
     const scan = vi.fn().mockResolvedValue([violation()]);
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(code).toBe(1);
@@ -47,7 +47,7 @@ describe("runCheck — exit codes", () => {
   it("returns 0 when all violations are suppressed", async () => {
     const scan = vi.fn().mockResolvedValue([violation({ suppressed: true })]);
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(code).toBe(0);
@@ -58,7 +58,7 @@ describe("runCheck — exit codes", () => {
       .fn()
       .mockResolvedValue([violation({ severity: "warn", suppressed: false })]);
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(code).toBe(0);
@@ -72,7 +72,7 @@ describe("runCheck — exit codes", () => {
         violation({ severity: "error" }),
       ]);
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(code).toBe(1);
@@ -119,7 +119,7 @@ describe("runCheck — config and option resolution", () => {
   it("CLI --files overrides config files", async () => {
     const expandGlobs = vi.fn().mockResolvedValue(["cli/routes.ts"]);
     await runCheck(
-      { spec: "api.yaml", files: "cli/**/*.ts" },
+      { spec: "api.yaml", files: ["cli/**/*.ts"] },
       makeDeps({
         configLoader: {
           load: vi
@@ -141,7 +141,7 @@ describe("runCheck — config and option resolution", () => {
       .fn()
       .mockResolvedValue(["/abs/src/routes.ts", "/abs/src/users.ts"]);
     await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps({ orchestrator: { scan }, expandGlobs }),
     );
     expect(scan).toHaveBeenCalledWith(
@@ -155,7 +155,7 @@ describe("runCheck — config and option resolution", () => {
     const v = violation();
     const report = vi.fn();
     await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps({
         orchestrator: { scan: vi.fn().mockResolvedValue([v]) },
         reporter: { report },
@@ -190,7 +190,7 @@ describe("runCheck — config and option resolution", () => {
 describe("runCheck — error cases", () => {
   it("throws when no spec path is resolved", async () => {
     await expect(
-      runCheck({ files: "src/**/*.ts" }, makeDeps()),
+      runCheck({ files: ["src/**/*.ts"] }, makeDeps()),
     ).rejects.toThrow(/spec/i);
   });
 
@@ -216,7 +216,7 @@ describe("runCheck — error cases", () => {
   it("propagates errors from orchestrator", async () => {
     await expect(
       runCheck(
-        { spec: "openapi.yaml", files: "src/**/*.ts" },
+        { spec: "openapi.yaml", files: ["src/**/*.ts"] },
         makeDeps({
           orchestrator: {
             scan: vi.fn().mockRejectedValue(new Error("scan failed")),
@@ -229,7 +229,7 @@ describe("runCheck — error cases", () => {
   it("propagates errors from configLoader", async () => {
     await expect(
       runCheck(
-        { spec: "openapi.yaml", files: "src/**/*.ts" },
+        { spec: "openapi.yaml", files: ["src/**/*.ts"] },
         makeDeps({
           configLoader: {
             load: vi.fn().mockRejectedValue(new Error("config syntax error")),
@@ -242,7 +242,7 @@ describe("runCheck — error cases", () => {
   it("returns 0 when expandGlobs matches no files", async () => {
     const scan = vi.fn().mockResolvedValue([]);
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps({
         orchestrator: { scan },
         expandGlobs: vi.fn().mockResolvedValue([]),
@@ -259,7 +259,7 @@ describe("runCheck — --ai flag", () => {
   it("passes useAi: true to the orchestrator when ai option is set", async () => {
     const scan = vi.fn().mockResolvedValue([]);
     await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts", ai: true },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"], ai: true },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(scan).toHaveBeenCalledWith(expect.objectContaining({ useAi: true }));
@@ -268,7 +268,7 @@ describe("runCheck — --ai flag", () => {
   it("passes useAi: false when ai option is not set", async () => {
     const scan = vi.fn().mockResolvedValue([]);
     await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(scan).toHaveBeenCalledWith(
@@ -281,7 +281,7 @@ describe("runCheck — --audit flag", () => {
   it("returns 0 even when there are error violations", async () => {
     const scan = vi.fn().mockResolvedValue([violation()]);
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts", audit: true },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"], audit: true },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(code).toBe(0);
@@ -291,7 +291,7 @@ describe("runCheck — --audit flag", () => {
     const report = vi.fn();
     const scan = vi.fn().mockResolvedValue([violation()]);
     await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts", audit: true },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"], audit: true },
       makeDeps({ orchestrator: { scan }, reporter: { report } }),
     );
     expect(report).toHaveBeenCalledWith(expect.arrayContaining([violation()]));
@@ -302,7 +302,7 @@ describe("runCheck — --strict flag", () => {
   it("returns 1 when there are only warn violations", async () => {
     const scan = vi.fn().mockResolvedValue([violation({ severity: "warn" })]);
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts", strict: true },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"], strict: true },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(code).toBe(1);
@@ -313,7 +313,7 @@ describe("runCheck — --strict flag", () => {
       .fn()
       .mockResolvedValue([violation({ severity: "warn", suppressed: true })]);
     const code = await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts", strict: true },
+      { spec: "openapi.yaml", files: ["src/**/*.ts"], strict: true },
       makeDeps({ orchestrator: { scan } }),
     );
     expect(code).toBe(0);
@@ -322,12 +322,15 @@ describe("runCheck — --strict flag", () => {
 
 describe("runCheck — --format flag", () => {
   it("uses JsonReporter when format is json", async () => {
-    const report = vi.fn();
+    const spy = vi
+      .spyOn(JsonReporter.prototype, "report")
+      .mockImplementation(() => {});
     const scan = vi.fn().mockResolvedValue([]);
     await runCheck(
-      { spec: "openapi.yaml", files: "src/**/*.ts", format: "json" },
-      makeDeps({ orchestrator: { scan }, reporter: { report } }),
+      { spec: "openapi.yaml", files: ["src/**/*.ts"], format: "json" },
+      makeDeps({ orchestrator: { scan }, reporter: undefined }),
     );
-    expect(report).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

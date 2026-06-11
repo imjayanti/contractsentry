@@ -76,7 +76,7 @@ export class TreeSitterPythonAnalyzer {
       endpointGuess,
       statusHint: null,
       returnShape,
-      paramShape: null,
+      paramShape: null, // request-body introspection not yet implemented for Python
       line: node.startPosition.row + 1,
       suppressed,
       isDynamic,

@@ -14,6 +14,8 @@ const HTTP_METHODS = [
   "put",
   "patch",
   "delete",
+  "options",
+  "trace",
 ] as const satisfies ReadonlyArray<HttpMethod>;
 
 export class SchemaExtractor {

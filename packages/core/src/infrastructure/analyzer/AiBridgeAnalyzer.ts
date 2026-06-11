@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { SubprocessError } from "../../domain/Errors.js";
 
 export interface AiViolation {
@@ -10,14 +10,29 @@ export interface AiViolation {
 
 type SubprocessRunner = (payload: string) => Promise<string>;
 
+let pythonExecutable: string | undefined;
+
+function getPythonExecutable(): string {
+  if (pythonExecutable) return pythonExecutable;
+  for (const candidate of ["python3", "python"]) {
+    try {
+      execSync(`${candidate} --version`, { stdio: "pipe" });
+      pythonExecutable = candidate;
+      return candidate;
+    } catch {}
+  }
+  throw new Error("No python3 or python found in PATH");
+}
+
 function spawnPython(payload: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("python", ["-m", "contractsentry_ai"]);
+    const child = spawn(getPythonExecutable(), ["-m", "contractsentry_ai"]);
     const out: Buffer[] = [];
     const err: Buffer[] = [];
 
     child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => err.push(chunk));
+    child.stdin.on("error", reject);
     child.stdin.write(payload, "utf-8");
     child.stdin.end();
 
@@ -50,7 +65,15 @@ export class AiBridgeAnalyzer {
     });
 
     const raw = await this.runner(payload);
-    const parsed = JSON.parse(raw) as { violations: AiViolation[] };
+    let parsed: { violations: AiViolation[] };
+    try {
+      parsed = JSON.parse(raw) as { violations: AiViolation[] };
+    } catch {
+      throw new SubprocessError(
+        1,
+        `Invalid JSON from Python subprocess: ${raw}`,
+      );
+    }
     return parsed.violations ?? [];
   }
 }

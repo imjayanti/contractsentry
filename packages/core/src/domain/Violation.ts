@@ -9,4 +9,5 @@ export interface Violation {
   found: string;
   severity: Severity;
   suppressed: boolean;
+  explanation?: string;
 }

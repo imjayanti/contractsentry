@@ -11,6 +11,7 @@ from contractsentry_ai.prompts import REPORT_VIOLATIONS_TOOL, build_prompt
 
 SUPPORTED_PROTOCOL_VERSIONS = {1}
 MODEL = "claude-haiku-4-5-20251001"
+_client = anthropic.Anthropic()
 
 
 class Violation(msgspec.Struct):
@@ -54,8 +55,7 @@ def analyze(raw_payload: dict) -> AnalysisResult:
 
     prompt = build_prompt(payload.endpoint, payload.schema, payload.code_snippet)
 
-    client = anthropic.Anthropic()
-    response = client.messages.create(
+    response = _client.messages.create(
         model=MODEL,
         max_tokens=1024,
         tools=[REPORT_VIOLATIONS_TOOL],

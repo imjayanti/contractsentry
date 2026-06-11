@@ -1,17 +1,21 @@
 #!/usr/bin/env node
+import { createRequire } from "node:module";
 import { program } from "commander";
 import { type CheckOptions, runCheck } from "./commands/check.js";
+
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json") as { version: string };
 
 program
   .name("csentry")
   .description("Validate TypeScript return shapes against OpenAPI contracts")
-  .version("0.0.0");
+  .version(version);
 
 program
   .command("check")
   .description("Scan TypeScript files and report contract violations")
   .option("--spec <path>", "path to OpenAPI spec file")
-  .option("--files <glob>", "glob pattern of TypeScript files to scan")
+  .option("--files <glob...>", "glob pattern(s) of TypeScript files to scan")
   .option("--ai", "enable AI-powered drift detection via Anthropic")
   .option(
     "--audit",

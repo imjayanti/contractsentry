@@ -59,8 +59,7 @@ class TestAnalyze:
         ]
         mock_response = make_anthropic_response(mock_violations)
 
-        with patch("contractsentry_ai.analyzer.anthropic.Anthropic") as mock_cls:
-            mock_client = mock_cls.return_value
+        with patch("contractsentry_ai.analyzer._client") as mock_client:
             mock_client.messages.create.return_value = mock_response
 
             result = analyze(SAMPLE_PAYLOAD)
@@ -75,8 +74,7 @@ class TestAnalyze:
     def test_returns_empty_violations_when_no_drift(self):
         mock_response = make_anthropic_response([])
 
-        with patch("contractsentry_ai.analyzer.anthropic.Anthropic") as mock_cls:
-            mock_client = mock_cls.return_value
+        with patch("contractsentry_ai.analyzer._client") as mock_client:
             mock_client.messages.create.return_value = mock_response
 
             result = analyze(SAMPLE_PAYLOAD)
@@ -100,8 +98,7 @@ class TestAnalyze:
         ]
         mock_response = make_anthropic_response(mock_violations)
 
-        with patch("contractsentry_ai.analyzer.anthropic.Anthropic") as mock_cls:
-            mock_client = mock_cls.return_value
+        with patch("contractsentry_ai.analyzer._client") as mock_client:
             mock_client.messages.create.return_value = mock_response
 
             result = analyze(SAMPLE_PAYLOAD)
@@ -123,8 +120,7 @@ class TestAnalyze:
     def test_calls_anthropic_with_correct_model(self):
         mock_response = make_anthropic_response([])
 
-        with patch("contractsentry_ai.analyzer.anthropic.Anthropic") as mock_cls:
-            mock_client = mock_cls.return_value
+        with patch("contractsentry_ai.analyzer._client") as mock_client:
             mock_client.messages.create.return_value = mock_response
 
             analyze(SAMPLE_PAYLOAD)
@@ -135,8 +131,7 @@ class TestAnalyze:
     def test_tool_definition_includes_report_violations(self):
         mock_response = make_anthropic_response([])
 
-        with patch("contractsentry_ai.analyzer.anthropic.Anthropic") as mock_cls:
-            mock_client = mock_cls.return_value
+        with patch("contractsentry_ai.analyzer._client") as mock_client:
             mock_client.messages.create.return_value = mock_response
 
             analyze(SAMPLE_PAYLOAD)

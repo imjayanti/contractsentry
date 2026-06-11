@@ -51,6 +51,7 @@ export class ScanOrchestrator {
     }
     const shapes = this.codeAnalyzer.analyzeSource(source, file);
     const violations: Violation[] = [];
+    const aiProcessed = new Set<string>();
 
     for (const shape of shapes.values()) {
       if (!shape.endpointGuess) continue;
@@ -83,7 +84,8 @@ export class ScanOrchestrator {
         );
       }
 
-      if (useAi && !shape.suppressed) {
+      if (useAi && !shape.suppressed && !aiProcessed.has(shape.endpointGuess)) {
+        aiProcessed.add(shape.endpointGuess);
         const aiViolations = await this.runAi(
           source,
           shape.endpointGuess,
@@ -108,9 +110,29 @@ export class ScanOrchestrator {
     endpoint: string,
     schemas: Map<string, Record<string, unknown>>,
   ): Promise<AiViolation[]> {
-    const successSchemas = this.successSchemasFor(endpoint, null, schemas);
-    if (successSchemas.length === 0) return [];
-    return this.aiBridge.analyzeEndpoint(endpoint, successSchemas[0], source);
+    const schema = this.primarySuccessSchemaFor(endpoint, schemas);
+    if (!schema) return [];
+    return this.aiBridge.analyzeEndpoint(endpoint, schema, source);
+  }
+
+  private primarySuccessSchemaFor(
+    endpointGuess: string,
+    schemas: Map<string, Record<string, unknown>>,
+  ): Record<string, unknown> | null {
+    const prefix = `${endpointGuess}:`;
+    let lowestCode = Number.POSITIVE_INFINITY;
+    let lowestSchema: Record<string, unknown> | null = null;
+    for (const [key, schema] of schemas) {
+      if (!key.startsWith(prefix)) continue;
+      const code = key.slice(prefix.length);
+      if (!code.startsWith("2")) continue;
+      const num = Number(code);
+      if (!Number.isNaN(num) && num < lowestCode) {
+        lowestCode = num;
+        lowestSchema = schema;
+      }
+    }
+    return lowestSchema;
   }
 
   private mergeAi(

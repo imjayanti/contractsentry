@@ -392,7 +392,7 @@ describe("SchemaExtractor — edge cases", () => {
     expect(extractor.extract(doc).has("GET /items:default")).toBe(true);
   });
 
-  it("skips options and trace methods — not in HTTP_METHODS", () => {
+  it("extracts options and trace methods", () => {
     const doc = {
       openapi: "3.0.3",
       info: { title: "Options API", version: "1.0.0" },
@@ -422,8 +422,8 @@ describe("SchemaExtractor — edge cases", () => {
       },
     } as unknown as OpenAPIDocument;
     const schemas = extractor.extract(doc);
-    expect(schemas.has("OPTIONS /resource:204")).toBe(false);
-    expect(schemas.has("TRACE /resource:200")).toBe(false);
+    expect(schemas.has("OPTIONS /resource:204")).toBe(true);
+    expect(schemas.has("TRACE /resource:200")).toBe(true);
   });
 
   it("extracts both JSON and non-JSON content types — only JSON schema is captured", () => {

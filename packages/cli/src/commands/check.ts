@@ -1,3 +1,4 @@
+import { relative } from "node:path";
 import {
   ConsoleReporter,
   CsentryConfigLoader,
@@ -19,11 +20,20 @@ export interface CheckDeps {
 
 export interface CheckOptions {
   spec?: string;
-  files?: string;
+  files?: string[];
   ai?: boolean;
   audit?: boolean;
   strict?: boolean;
   format?: "table" | "json";
+}
+
+function matchesGlob(filePath: string, pattern: string): boolean {
+  const regexStr = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .split("**")
+    .map((segment) => segment.replace(/\*/g, "[^/]*"))
+    .join(".*");
+  return new RegExp(`^${regexStr}$`).test(filePath);
 }
 
 export async function runCheck(
@@ -42,9 +52,7 @@ export async function runCheck(
   const cwd = process.cwd();
   const config = await configLoader.load(cwd);
   const specPath = options.spec ?? config?.spec;
-  const fileGlobs: string[] = options.files
-    ? [options.files]
-    : (config?.files ?? []);
+  const fileGlobs: string[] = options.files ?? config?.files ?? [];
 
   if (!specPath) {
     throw new Error(
@@ -58,16 +66,28 @@ export async function runCheck(
   }
 
   const filePaths = await expandGlobs(fileGlobs, cwd);
-  const violations = await orchestrator.scan({
+  const allViolations = await orchestrator.scan({
     specPath,
     filePaths,
     useAi: options.ai ?? false,
   });
+
+  const ignorePatterns = config?.ignore ?? [];
+  const violations =
+    ignorePatterns.length > 0
+      ? allViolations.filter(
+          (v) =>
+            !ignorePatterns.some((p) => matchesGlob(relative(cwd, v.file), p)),
+        )
+      : allViolations;
+
   reporter.report(violations);
 
-  if (options.audit) return 0;
+  const audit = options.audit ?? config?.audit ?? false;
+  if (audit) return 0;
 
-  const hasViolation = options.strict
+  const strict = options.strict ?? config?.strict ?? false;
+  const hasViolation = strict
     ? violations.some((v) => !v.suppressed)
     : violations.some((v) => !v.suppressed && v.severity === "error");
 
