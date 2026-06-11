@@ -6,11 +6,14 @@ pre-commit:
       run: pnpm biome check --write {staged_files}
       stage_fixed: true
     ty-check:
-      glob: "*.py"
-      run: uv run ty check {staged_files}
+      glob: "packages/ai/**/*.py"
+      run: uv run --directory packages/ai ty check {staged_files}
     ruff-check:
-      glob: "*.py"
-      run: uv run ruff check --fix {staged_files}
+      glob: "packages/ai/**/*.py"
+      run: uvx ruff check --fix {staged_files}
       stage_fixed: true
     test:
       run: pnpm turbo test
+    pytest:
+      glob: "packages/ai/**/*.py"
+      run: uv run --directory packages/ai pytest tests/ -q
