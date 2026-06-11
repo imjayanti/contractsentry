@@ -90,8 +90,10 @@ export async function runCheck(
 
   const strict = options.strict ?? config?.strict ?? false;
   const hasViolation = strict
-    ? violations.some((v) => !v.suppressed)
-    : violations.some((v) => !v.suppressed && v.severity === "error");
+    ? violations.some((violation) => !violation.suppressed)
+    : violations.some(
+        (violation) => !violation.suppressed && violation.severity === "error",
+      );
 
   return hasViolation ? 1 : 0;
 }
