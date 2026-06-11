@@ -20,7 +20,10 @@ export class FileCodeAnalyzer implements ICodeAnalyzer {
         err instanceof Error ? err : new Error(String(err)),
       );
     }
+    return this.analyzeSource(source, file);
+  }
 
+  analyzeSource(source: string, file: string): Map<string, FunctionShape> {
     const isPython = extname(file).toLowerCase() === ".py";
     const shapes = isPython
       ? this.pyAnalyzer.analyze(source)

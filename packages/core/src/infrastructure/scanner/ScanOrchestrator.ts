@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { AnalysisError } from "../../domain/Errors.js";
 import type { Violation } from "../../domain/Violation.js";
 import {
   AiBridgeAnalyzer,
@@ -38,7 +39,16 @@ export class ScanOrchestrator {
     schemas: Map<string, Record<string, unknown>>,
     useAi: boolean,
   ): Promise<Violation[]> {
-    const shapes = await this.codeAnalyzer.analyze(file);
+    let source: string;
+    try {
+      source = await readFile(file, "utf-8");
+    } catch (err) {
+      throw new AnalysisError(
+        file,
+        err instanceof Error ? err : new Error(String(err)),
+      );
+    }
+    const shapes = this.codeAnalyzer.analyzeSource(source, file);
     const violations: Violation[] = [];
 
     for (const shape of shapes.values()) {
@@ -74,7 +84,7 @@ export class ScanOrchestrator {
 
       if (useAi && !shape.suppressed) {
         const aiViolations = await this.runAi(
-          file,
+          source,
           shape.endpointGuess,
           schemas,
         );
@@ -93,15 +103,13 @@ export class ScanOrchestrator {
   }
 
   private async runAi(
-    file: string,
+    source: string,
     endpoint: string,
     schemas: Map<string, Record<string, unknown>>,
   ): Promise<AiViolation[]> {
     const successSchemas = this.successSchemasFor(endpoint, null, schemas);
     if (successSchemas.length === 0) return [];
-    const schema = successSchemas[0];
-    const codeSnippet = await readFile(file, "utf-8");
-    return this.aiBridge.analyzeEndpoint(endpoint, schema, codeSnippet);
+    return this.aiBridge.analyzeEndpoint(endpoint, successSchemas[0], source);
   }
 
   private mergeAi(
