@@ -46,14 +46,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@11
+
       - name: Publish to npm
         id: publish
         if: steps.changesets.outputs.hasChangesets == 'false'
-        run: |
-          echo "registry=https://registry.npmjs.org/" > /tmp/publish.npmrc
-          node scripts/npm-publish.mjs
+        run: node scripts/npm-publish.mjs
         env:
-          NPM_CONFIG_USERCONFIG: /tmp/publish.npmrc
           NPM_CONFIG_PROVENANCE: "true"
 
   publish-python:
