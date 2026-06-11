@@ -67,3 +67,15 @@ jobs:
       - name: Test Python
         run: uv run pytest tests/ -v
         working-directory: packages/ai
+
+      - name: Smoke test
+        run: |
+          node packages/cli/dist/bin.js check \
+            --spec examples/petstore/openapi.yaml \
+            --files 'examples/petstore/routes/*.ts'
+          EXIT=$?
+          if [ $EXIT -ne 1 ]; then
+            echo "Smoke test failed: expected exit 1 (violations found), got $EXIT"
+            exit 1
+          fi
+          echo "Smoke test passed"
