@@ -41,6 +41,9 @@ jobs:
 
       - run: pnpm build
 
+      - name: Prepare clean npmrc for OIDC trusted publish
+        run: printf "" > /tmp/csentry.npmrc
+
       - uses: changesets/action@v1
         id: changesets
         with:
@@ -48,6 +51,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+          NPM_CONFIG_USERCONFIG: /tmp/csentry.npmrc
 
   publish-python:
     name: Publish contractsentry-ai to PyPI
