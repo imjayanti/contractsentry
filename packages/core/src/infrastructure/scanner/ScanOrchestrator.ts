@@ -156,6 +156,7 @@ export class ScanOrchestrator {
         found: av.found,
         severity: "error",
         suppressed: false,
+        explanation: av.explanation,
       });
     }
     return added;
