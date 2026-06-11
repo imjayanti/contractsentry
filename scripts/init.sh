@@ -32,7 +32,12 @@ step "Installing pnpm workspace dependencies"
 pnpm install
 ok "node_modules ready"
 
-# ── 4. Wire up git hooks ─────────────────────────────────────────────────────
+# ── 4. Install Python AI package dependencies ────────────────────────────────
+step "Installing packages/ai dependencies (uv sync)"
+(cd packages/ai && uv sync)
+ok "Python venv ready"
+
+# ── 5. Wire up git hooks ─────────────────────────────────────────────────────
 step "Installing lefthook git hooks"
 pnpm lefthook install
 ok "pre-commit hooks active"
@@ -40,4 +45,4 @@ ok "pre-commit hooks active"
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}ContractSentry dev environment ready.${NC}"
-echo "Next: follow the Phase 1 commit in noble-gliding-starfish.md"
+echo "Run 'pnpm build && pnpm test' to verify everything works."
