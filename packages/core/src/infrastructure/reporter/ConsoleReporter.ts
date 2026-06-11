@@ -12,6 +12,9 @@ export class ConsoleReporter implements IReporter {
       this.writeLine(
         `${v.file}:${v.line}  ${v.severity}  ${v.endpoint}  field "${v.field}" expected ${v.expected}, found ${v.found}`,
       );
+      if (v.explanation) {
+        this.writeLine(`  → ${v.explanation}`);
+      }
     }
     if (actionable.length > 0) {
       this.writeLine("");

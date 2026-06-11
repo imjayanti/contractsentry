@@ -111,6 +111,36 @@ describe("ConsoleReporter — violation lines", () => {
   });
 });
 
+describe("ConsoleReporter — explanation", () => {
+  it("prints explanation on the line following the violation", () => {
+    const { reporter, lines } = capture();
+    reporter.report([
+      violation({ explanation: "email is required by the schema" }),
+    ]);
+    expect(lines()[0]).toContain('field "email"');
+    expect(lines()[1]).toContain("email is required by the schema");
+    expect(lines()[1]).toMatch(/^\s+→/);
+  });
+
+  it("omits the explanation line when explanation is absent", () => {
+    const { reporter, lines } = capture();
+    reporter.report([violation()]);
+    const nonEmptyLines = lines().filter((l) => l !== "");
+    expect(nonEmptyLines).toHaveLength(2); // violation + summary
+  });
+
+  it("prints explanations only for violations that have one", () => {
+    const { reporter, lines } = capture();
+    reporter.report([
+      violation({ field: "email", explanation: "missing required field" }),
+      violation({ field: "name" }),
+    ]);
+    const explanationLines = lines().filter((l) => /^\s+→/.test(l));
+    expect(explanationLines).toHaveLength(1);
+    expect(explanationLines[0]).toContain("missing required field");
+  });
+});
+
 describe("ConsoleReporter — summary line", () => {
   it("prints singular 'violation' for exactly 1 violation", () => {
     const { reporter, lines } = capture();

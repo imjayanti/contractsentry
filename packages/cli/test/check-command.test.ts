@@ -320,6 +320,65 @@ describe("runCheck — --strict flag", () => {
   });
 });
 
+describe("runCheck — config.ignore", () => {
+  it("filters violations whose file matches an ignore pattern", async () => {
+    const report = vi.fn();
+    const absFile = `${process.cwd()}/src/generated/types.ts`;
+    const v = violation({ file: absFile });
+    await runCheck(
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
+      makeDeps({
+        orchestrator: { scan: vi.fn().mockResolvedValue([v]) },
+        reporter: { report },
+        configLoader: {
+          load: vi.fn().mockResolvedValue({
+            spec: "openapi.yaml",
+            files: ["src/**/*.ts"],
+            ignore: ["src/generated/**"],
+          }),
+        },
+        expandGlobs: vi.fn().mockResolvedValue([absFile]),
+      }),
+    );
+    expect(report).toHaveBeenCalledWith([]);
+  });
+
+  it("keeps violations whose file does not match any ignore pattern", async () => {
+    const report = vi.fn();
+    const absFile = `${process.cwd()}/src/routes/users.ts`;
+    const v = violation({ file: absFile });
+    await runCheck(
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
+      makeDeps({
+        orchestrator: { scan: vi.fn().mockResolvedValue([v]) },
+        reporter: { report },
+        configLoader: {
+          load: vi.fn().mockResolvedValue({
+            spec: "openapi.yaml",
+            files: ["src/**/*.ts"],
+            ignore: ["src/generated/**"],
+          }),
+        },
+        expandGlobs: vi.fn().mockResolvedValue([absFile]),
+      }),
+    );
+    expect(report).toHaveBeenCalledWith([v]);
+  });
+
+  it("passes all violations through when ignore is absent", async () => {
+    const report = vi.fn();
+    const v = violation();
+    await runCheck(
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
+      makeDeps({
+        orchestrator: { scan: vi.fn().mockResolvedValue([v]) },
+        reporter: { report },
+      }),
+    );
+    expect(report).toHaveBeenCalledWith([v]);
+  });
+});
+
 describe("runCheck — --format flag", () => {
   it("uses JsonReporter when format is json", async () => {
     const spy = vi
