@@ -7,7 +7,8 @@ pre-commit:
       stage_fixed: true
     ty-check:
       glob: "packages/ai/**/*.py"
-      run: bash -c 'cd packages/ai && uv run ty check contractsentry_ai/ tests/'
+      root: packages/ai
+      run: uv run ty check contractsentry_ai/ tests/
     ruff-check:
       glob: "packages/ai/**/*.py"
       run: uvx ruff check --fix {staged_files}
