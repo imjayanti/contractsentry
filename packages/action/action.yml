@@ -34,6 +34,17 @@ runs:
       shell: bash
       run: pnpm add --global @contractsentry/cli
 
+    - name: Set up Python (AI mode only)
+      if: ${{ inputs.ai == 'true' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install contractsentry-ai (AI mode only)
+      if: ${{ inputs.ai == 'true' }}
+      shell: bash
+      run: pip install contractsentry-ai
+
     - name: Run contract check
       shell: bash
       working-directory: ${{ inputs.working-directory }}

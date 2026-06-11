@@ -34,6 +34,14 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.11.12"
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm build
@@ -43,3 +51,19 @@ jobs:
       - run: pnpm lint
 
       - run: pnpm typecheck
+
+      - name: Install AI package deps
+        run: uv sync
+        working-directory: packages/ai
+
+      - name: Lint Python
+        run: uv run ruff check contractsentry_ai/ tests/
+        working-directory: packages/ai
+
+      - name: Typecheck Python
+        run: uv run ty check contractsentry_ai/ tests/
+        working-directory: packages/ai
+
+      - name: Test Python
+        run: uv run pytest tests/ -v
+        working-directory: packages/ai
