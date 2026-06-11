@@ -150,7 +150,7 @@ A clean scan produces no output and exits `0`.
 Use the official composite action:
 
 ```yaml
-- uses: imjayanti/contractsentry/packages/action@main
+- uses: imjayanti/contractsentry@v1
   with:
     spec: openapi.yaml
     files: src/**/*.ts
@@ -159,7 +159,7 @@ Use the official composite action:
 With AI detection:
 
 ```yaml
-- uses: imjayanti/contractsentry/packages/action@main
+- uses: imjayanti/contractsentry@v1
   with:
     spec: openapi.yaml
     files: src/**/*.ts
@@ -193,7 +193,7 @@ Or invoke the CLI directly:
 | [`@contractsentry/cli`](packages/cli) | `csentry` CLI — the main entry point |
 | [`@contractsentry/core`](packages/core) | Analyzers, validator, reporter, orchestrator |
 | [`contractsentry-ai`](packages/ai) | Python module — LLM drift detection via Anthropic tool use |
-| [`packages/action`](packages/action) | GitHub Action composite wrapping `csentry check` |
+| [`action.yml`](action.yml) | GitHub Action composite wrapping `csentry check` |
 
 ---
 
