@@ -1,22 +1,25 @@
 #!/usr/bin/env node
-// Publishes unpublished packages using pnpm pack + npm publish.
-// pnpm pack replaces workspace:* with real versions; npm publish uses the
-// OIDC trusted-publisher flow so no npm token is needed.
+// Publishes unpublished packages using npm publish from each package directory.
+// Publishing from a directory (not a tarball) is required for npm to trigger
+// the trusted-publisher OIDC exchange. workspace:* deps in cli are temporarily
+// resolved to real versions before publishing, then restored.
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { appendFileSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
+const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES = ["packages/core", "packages/cli"];
 let anyPublished = false;
 
 for (const dir of PACKAGES) {
-  const { name, version } = JSON.parse(
-    readFileSync(join(dir, "package.json"), "utf8"),
-  );
+  const absDir = join(ROOT, dir);
+  const pkgPath = join(absDir, "package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 
   let current;
   try {
-    current = execSync(`npm view ${name} version`, {
+    current = execSync(`npm view ${pkg.name} version`, {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
@@ -24,27 +27,45 @@ for (const dir of PACKAGES) {
     current = "0.0.0";
   }
 
-  if (current === version) {
-    console.log(`${name}@${version} already published, skipping`);
+  if (current === pkg.version) {
+    console.log(`${pkg.name}@${pkg.version} already published, skipping`);
     continue;
   }
 
-  console.log(`\nPublishing ${name}@${version}`);
+  console.log(`\nPublishing ${pkg.name}@${pkg.version}`);
 
-  const packOut = execSync("pnpm pack", {
-    cwd: dir,
-    encoding: "utf8",
-  });
-  const tarball = packOut.trim().split("\n").pop().trim();
+  // Temporarily replace workspace:* with real versions so npm understands them
+  const originalJson = readFileSync(pkgPath, "utf8");
+  let patched = false;
 
-  execSync(`npm publish ${tarball} --access public`, {
-    cwd: dir,
-    stdio: "inherit",
-  });
+  if (pkg.dependencies) {
+    for (const [dep, ver] of Object.entries(pkg.dependencies)) {
+      if (typeof ver === "string" && ver.startsWith("workspace:")) {
+        const localName = dep.replace(/^@contractsentry\//, "");
+        const localPkg = JSON.parse(
+          readFileSync(
+            join(ROOT, "packages", localName, "package.json"),
+            "utf8",
+          ),
+        );
+        pkg.dependencies[dep] = `^${localPkg.version}`;
+        patched = true;
+      }
+    }
+    if (patched) writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+  }
 
-  rmSync(join(dir, tarball), { force: true });
-  anyPublished = true;
-  console.log(`✓ ${name}@${version} published`);
+  try {
+    // --provenance explicitly triggers the trusted-publisher OIDC exchange
+    execSync("npm publish --access public --provenance", {
+      cwd: absDir,
+      stdio: "inherit",
+    });
+    anyPublished = true;
+    console.log(`✓ ${pkg.name}@${pkg.version} published`);
+  } finally {
+    if (patched) writeFileSync(pkgPath, originalJson);
+  }
 }
 
 if (anyPublished && process.env.GITHUB_OUTPUT) {
