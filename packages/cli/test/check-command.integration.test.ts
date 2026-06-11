@@ -65,9 +65,7 @@ describe("csentry check — petstore fixture", () => {
   it("reports wrong id type on POST /users", () => {
     expect(result.stdout).toContain("users.ts:16");
     expect(result.stdout).toContain("POST /users");
-    expect(result.stdout).toContain(
-      'field "id" expected integer, found string',
-    );
+    expect(result.stdout).toContain('field "id" expected integer, found "1"');
   });
 
   it("reports missing email on POST /users", () => {
