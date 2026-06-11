@@ -6,4 +6,5 @@ allowBuilds:
   esbuild: true
   lefthook: true
   tree-sitter: true
+  tree-sitter-python: true
   tree-sitter-typescript: true
