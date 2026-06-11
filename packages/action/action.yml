@@ -1,0 +1,51 @@
+name: ContractSentry Check
+description: Validate TypeScript/Python return shapes against OpenAPI contracts
+author: ContractSentry
+
+inputs:
+  spec:
+    description: Path to the OpenAPI spec file
+    required: true
+  files:
+    description: Glob pattern of source files to scan
+    required: true
+  ai:
+    description: Enable AI-powered drift detection via Anthropic (requires ANTHROPIC_API_KEY)
+    required: false
+    default: "false"
+  working-directory:
+    description: Directory to run the check from
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 11.0.9
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - name: Install ContractSentry
+      shell: bash
+      run: pnpm add --global @contractsentry/cli
+
+    - name: Run contract check
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+      run: |
+        ARGS="--spec ${{ inputs.spec }} --files ${{ inputs.files }}"
+        if [ "${{ inputs.ai }}" = "true" ]; then
+          ARGS="$ARGS --ai"
+        fi
+        csentry check $ARGS
+
+branding:
+  icon: shield
+  color: blue
