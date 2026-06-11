@@ -31,7 +31,7 @@ for (const dir of PACKAGES) {
 
   console.log(`\nPublishing ${name}@${version}`);
 
-  const packOut = execSync("pnpm pack --no-git-checks", {
+  const packOut = execSync("pnpm pack", {
     cwd: dir,
     encoding: "utf8",
   });
