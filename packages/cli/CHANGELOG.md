@@ -1,5 +1,33 @@
 # @contractsentry/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- cb1e7c4: Add Python analyzer, AI-powered drift detection, and GitHub Action
+
+  - Analyze FastAPI and Flask routes via tree-sitter Python grammar — extracts return shapes from decorated functions, detects dynamic returns, and respects `# csentry-ignore` suppression
+  - Dispatch TypeScript vs Python analysis automatically in `FileCodeAnalyzer` based on file extension
+  - Add `AiBridgeAnalyzer` that spawns `python -m contractsentry_ai` as a subprocess and merges LLM violations with static findings, deduplicating by `(endpoint, field)`
+  - Add `--ai` flag to `csentry check` to enable AI-powered detection (requires `ANTHROPIC_API_KEY`)
+  - Export `AiBridgeAnalyzer` and `AiViolation` from the public API
+  - Read each source file once in `ScanOrchestrator` and pass the content to both static and AI analysis
+
+- 36e2905: Add schema composition, enum validation, and nested return shape analysis
+
+  - Resolve allOf / oneOf / anyOf schema composition when extracting OpenAPI schemas
+  - Validate nested object fields with dot-notation field names in violations
+  - Validate array response items against the spec's items schema
+  - Detect enum violations when a string literal return value is not in the spec's enum array
+  - Detect return shapes from nested blocks (if-else, switch, try) — not just top-level returns
+  - Export FieldShape and FieldShapeRecord types from the public API
+
+### Patch Changes
+
+- Updated dependencies [cb1e7c4]
+- Updated dependencies [36e2905]
+  - @contractsentry/core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
