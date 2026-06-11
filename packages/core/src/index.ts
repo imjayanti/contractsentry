@@ -23,6 +23,10 @@ export { OpenApiSpecLoader } from "./infrastructure/spec/OpenApiSpecLoader.js";
 export { ContractValidator } from "./infrastructure/validator/ContractValidator.js";
 export { FileCodeAnalyzer } from "./infrastructure/analyzer/FileCodeAnalyzer.js";
 export {
+  AiBridgeAnalyzer,
+  type AiViolation,
+} from "./infrastructure/analyzer/AiBridgeAnalyzer.js";
+export {
   ScanOrchestrator,
   type ScanInput,
 } from "./infrastructure/scanner/ScanOrchestrator.js";

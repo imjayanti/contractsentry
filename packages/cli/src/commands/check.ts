@@ -19,6 +19,7 @@ export interface CheckDeps {
 export interface CheckOptions {
   spec?: string;
   files?: string;
+  ai?: boolean;
 }
 
 export async function runCheck(
@@ -51,7 +52,11 @@ export async function runCheck(
   }
 
   const filePaths = await expandGlobs(fileGlobs, cwd);
-  const violations = await orchestrator.scan({ specPath, filePaths });
+  const violations = await orchestrator.scan({
+    specPath,
+    filePaths,
+    useAi: options.ai ?? false,
+  });
   reporter.report(violations);
 
   return violations.some((v) => !v.suppressed && v.severity === "error")

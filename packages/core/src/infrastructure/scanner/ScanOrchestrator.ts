@@ -1,4 +1,9 @@
+import { readFile } from "node:fs/promises";
 import type { Violation } from "../../domain/Violation.js";
+import {
+  AiBridgeAnalyzer,
+  type AiViolation,
+} from "../analyzer/AiBridgeAnalyzer.js";
 import { FileCodeAnalyzer } from "../analyzer/FileCodeAnalyzer.js";
 import { OpenApiSpecLoader } from "../spec/OpenApiSpecLoader.js";
 import { SchemaExtractor } from "../spec/SchemaExtractor.js";
@@ -7,6 +12,7 @@ import { ContractValidator } from "../validator/ContractValidator.js";
 export interface ScanInput {
   specPath: string;
   filePaths: string[];
+  useAi?: boolean;
 }
 
 export class ScanOrchestrator {
@@ -14,12 +20,15 @@ export class ScanOrchestrator {
   private readonly schemaExtractor = new SchemaExtractor();
   private readonly codeAnalyzer = new FileCodeAnalyzer();
   private readonly validator = new ContractValidator();
+  private readonly aiBridge = new AiBridgeAnalyzer();
 
   async scan(input: ScanInput): Promise<Violation[]> {
     const doc = await this.specLoader.load(input.specPath);
     const schemas = this.schemaExtractor.extract(doc);
     const perFileViolations = await Promise.all(
-      input.filePaths.map((file) => this.analyzeFile(file, schemas)),
+      input.filePaths.map((file) =>
+        this.analyzeFile(file, schemas, input.useAi ?? false),
+      ),
     );
     return perFileViolations.flat();
   }
@@ -27,9 +36,11 @@ export class ScanOrchestrator {
   private async analyzeFile(
     file: string,
     schemas: Map<string, Record<string, unknown>>,
+    useAi: boolean,
   ): Promise<Violation[]> {
     const shapes = await this.codeAnalyzer.analyze(file);
     const violations: Violation[] = [];
+
     for (const shape of shapes.values()) {
       if (!shape.endpointGuess) continue;
 
@@ -60,8 +71,63 @@ export class ScanOrchestrator {
           ...this.validator.validateRequest(shape, requestSchema, file),
         );
       }
+
+      if (useAi && !shape.suppressed) {
+        const aiViolations = await this.runAi(
+          file,
+          shape.endpointGuess,
+          schemas,
+        );
+        violations.push(
+          ...this.mergeAi(
+            aiViolations,
+            violations,
+            shape.endpointGuess,
+            file,
+            shape.line,
+          ),
+        );
+      }
     }
     return violations;
+  }
+
+  private async runAi(
+    file: string,
+    endpoint: string,
+    schemas: Map<string, Record<string, unknown>>,
+  ): Promise<AiViolation[]> {
+    const successSchemas = this.successSchemasFor(endpoint, null, schemas);
+    if (successSchemas.length === 0) return [];
+    const schema = successSchemas[0];
+    const codeSnippet = await readFile(file, "utf-8");
+    return this.aiBridge.analyzeEndpoint(endpoint, schema, codeSnippet);
+  }
+
+  private mergeAi(
+    aiViolations: AiViolation[],
+    existing: Violation[],
+    endpoint: string,
+    file: string,
+    line: number,
+  ): Violation[] {
+    const seen = new Set(existing.map((v) => `${v.endpoint}::${v.field}`));
+    const added: Violation[] = [];
+    for (const av of aiViolations) {
+      const key = `${endpoint}::${av.field}`;
+      if (seen.has(key)) continue;
+      added.push({
+        file,
+        line,
+        endpoint,
+        field: av.field,
+        expected: av.expected,
+        found: av.found,
+        severity: "error",
+        suppressed: false,
+      });
+    }
+    return added;
   }
 
   private successSchemasFor(

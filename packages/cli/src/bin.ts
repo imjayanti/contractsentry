@@ -12,6 +12,7 @@ program
   .description("Scan TypeScript files and report contract violations")
   .option("--spec <path>", "path to OpenAPI spec file")
   .option("--files <glob>", "glob pattern of TypeScript files to scan")
+  .option("--ai", "enable AI-powered drift detection via Anthropic")
   .action(async (opts: CheckOptions) => {
     try {
       const code = await runCheck(opts);
