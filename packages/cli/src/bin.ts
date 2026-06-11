@@ -13,6 +13,16 @@ program
   .option("--spec <path>", "path to OpenAPI spec file")
   .option("--files <glob>", "glob pattern of TypeScript files to scan")
   .option("--ai", "enable AI-powered drift detection via Anthropic")
+  .option(
+    "--audit",
+    "report violations but always exit 0 (gradual CI adoption)",
+  )
+  .option("--strict", "exit 1 on any violation including warnings")
+  .option(
+    "--format <format>",
+    "output format: table (default) or json",
+    "table",
+  )
   .action(async (opts: CheckOptions) => {
     try {
       const code = await runCheck(opts);

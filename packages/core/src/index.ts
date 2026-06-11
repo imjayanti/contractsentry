@@ -18,6 +18,7 @@ export type { IReporter } from "./domain/IReporter.js";
 export type { IConfigLoader, CsentryConfig } from "./domain/IConfigLoader.js";
 export { CsentryConfigLoader } from "./infrastructure/config/CsentryConfigLoader.js";
 export { ConsoleReporter } from "./infrastructure/reporter/ConsoleReporter.js";
+export { JsonReporter } from "./infrastructure/reporter/JsonReporter.js";
 export { SchemaExtractor } from "./infrastructure/spec/SchemaExtractor.js";
 export { OpenApiSpecLoader } from "./infrastructure/spec/OpenApiSpecLoader.js";
 export { ContractValidator } from "./infrastructure/validator/ContractValidator.js";

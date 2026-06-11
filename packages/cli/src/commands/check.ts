@@ -3,6 +3,7 @@ import {
   CsentryConfigLoader,
   type IConfigLoader,
   type IReporter,
+  JsonReporter,
   type ScanInput,
   ScanOrchestrator,
   type Violation,
@@ -20,15 +21,20 @@ export interface CheckOptions {
   spec?: string;
   files?: string;
   ai?: boolean;
+  audit?: boolean;
+  strict?: boolean;
+  format?: "table" | "json";
 }
 
 export async function runCheck(
   options: CheckOptions,
   deps: CheckDeps = {},
 ): Promise<number> {
+  const defaultReporter =
+    options.format === "json" ? new JsonReporter() : new ConsoleReporter();
   const {
     orchestrator = new ScanOrchestrator(),
-    reporter = new ConsoleReporter(),
+    reporter = defaultReporter,
     configLoader = new CsentryConfigLoader(),
     expandGlobs = (patterns, cwd) => fg(patterns, { cwd, absolute: true }),
   } = deps;
@@ -59,7 +65,11 @@ export async function runCheck(
   });
   reporter.report(violations);
 
-  return violations.some((v) => !v.suppressed && v.severity === "error")
-    ? 1
-    : 0;
+  if (options.audit) return 0;
+
+  const hasViolation = options.strict
+    ? violations.some((v) => !v.suppressed)
+    : violations.some((v) => !v.suppressed && v.severity === "error");
+
+  return hasViolation ? 1 : 0;
 }
