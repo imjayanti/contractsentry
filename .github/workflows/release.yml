@@ -50,7 +50,7 @@ jobs:
         id: publish
         if: steps.changesets.outputs.hasChangesets == 'false'
         run: |
-          printf '//registry.npmjs.org/:_authToken=\nregistry=https://registry.npmjs.org/\n' > /tmp/publish.npmrc
+          echo "registry=https://registry.npmjs.org/" > /tmp/publish.npmrc
           node scripts/npm-publish.mjs
         env:
           NPM_CONFIG_USERCONFIG: /tmp/publish.npmrc
