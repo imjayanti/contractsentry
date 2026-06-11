@@ -2,8 +2,17 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { AnalysisError, SpecLoadError } from "../src/domain/Errors.js";
+import { AiBridgeAnalyzer } from "../src/infrastructure/analyzer/AiBridgeAnalyzer.js";
 import { ScanOrchestrator } from "../src/infrastructure/scanner/ScanOrchestrator.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1113,5 +1122,122 @@ describe("ScanOrchestrator — nested block return analysis", () => {
         (v) => v.field === "(return value)" && v.severity === "warn",
       ),
     ).toBe(true);
+  });
+});
+
+describe("ScanOrchestrator — useAi path", () => {
+  let tmpDir: string;
+  let tsFile: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "csentry-ai-test-"));
+    tsFile = join(tmpDir, "route.ts");
+    await writeFile(
+      tsFile,
+      [
+        "// @route GET /users/{id}",
+        "export function getUser(id: number) {",
+        '  return { id, name: "Alice" };',
+        "}",
+      ].join("\n"),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("merges AI violations with static violations", async () => {
+    const runner = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        violations: [
+          {
+            field: "email",
+            expected: "present",
+            found: "missing",
+            explanation: "AI found missing email",
+          },
+        ],
+      }),
+    );
+    const bridge = new AiBridgeAnalyzer(runner);
+    const orchestrator = new ScanOrchestrator(bridge);
+
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [tsFile],
+      useAi: true,
+    });
+
+    const aiViolation = violations.find(
+      (v) => v.field === "email" && v.expected === "present",
+    );
+    expect(aiViolation).toBeDefined();
+    expect(aiViolation?.severity).toBe("error");
+    expect(aiViolation?.suppressed).toBe(false);
+  });
+
+  it("deduplicates AI violations already caught by static analysis", async () => {
+    const runner = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        violations: [
+          {
+            field: "email",
+            expected: "present",
+            found: "missing",
+            explanation: "duplicate",
+          },
+        ],
+      }),
+    );
+    const bridge = new AiBridgeAnalyzer(runner);
+    const orchestrator = new ScanOrchestrator(bridge);
+
+    const violations = await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [tsFile],
+      useAi: true,
+    });
+
+    const emailViolations = violations.filter((v) => v.field === "email");
+    expect(emailViolations).toHaveLength(1);
+  });
+
+  it("does not call AI bridge when useAi is false", async () => {
+    const runner = vi.fn();
+    const bridge = new AiBridgeAnalyzer(runner);
+    const orchestrator = new ScanOrchestrator(bridge);
+
+    await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [tsFile],
+      useAi: false,
+    });
+
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("does not call AI bridge for suppressed shapes", async () => {
+    await writeFile(
+      tsFile,
+      [
+        "// csentry-ignore",
+        "// @route GET /users/{id}",
+        "export function getUser(id: number) {",
+        '  return { id, name: "Alice" };',
+        "}",
+      ].join("\n"),
+    );
+    const runner = vi.fn();
+    const bridge = new AiBridgeAnalyzer(runner);
+    const orchestrator = new ScanOrchestrator(bridge);
+
+    await orchestrator.scan({
+      specPath: SPEC,
+      filePaths: [tsFile],
+      useAi: true,
+    });
+
+    expect(runner).not.toHaveBeenCalled();
   });
 });

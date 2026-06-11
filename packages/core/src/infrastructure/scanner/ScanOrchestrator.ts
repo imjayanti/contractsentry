@@ -21,7 +21,8 @@ export class ScanOrchestrator {
   private readonly schemaExtractor = new SchemaExtractor();
   private readonly codeAnalyzer = new FileCodeAnalyzer();
   private readonly validator = new ContractValidator();
-  private readonly aiBridge = new AiBridgeAnalyzer();
+
+  constructor(private readonly aiBridge = new AiBridgeAnalyzer()) {}
 
   async scan(input: ScanInput): Promise<Violation[]> {
     const doc = await this.specLoader.load(input.specPath);

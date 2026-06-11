@@ -254,3 +254,25 @@ describe("runCheck — error cases", () => {
     expect(code).toBe(0);
   });
 });
+
+describe("runCheck — --ai flag", () => {
+  it("passes useAi: true to the orchestrator when ai option is set", async () => {
+    const scan = vi.fn().mockResolvedValue([]);
+    await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts", ai: true },
+      makeDeps({ orchestrator: { scan } }),
+    );
+    expect(scan).toHaveBeenCalledWith(expect.objectContaining({ useAi: true }));
+  });
+
+  it("passes useAi: false when ai option is not set", async () => {
+    const scan = vi.fn().mockResolvedValue([]);
+    await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts" },
+      makeDeps({ orchestrator: { scan } }),
+    );
+    expect(scan).toHaveBeenCalledWith(
+      expect.objectContaining({ useAi: false }),
+    );
+  });
+});
