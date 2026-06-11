@@ -12,3 +12,5 @@ pre-commit:
       glob: "*.py"
       run: uv run ruff check --fix {staged_files}
       stage_fixed: true
+    test:
+      run: pnpm turbo test
