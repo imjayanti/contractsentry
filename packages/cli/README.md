@@ -1,6 +1,6 @@
 # @contractsentry/cli
 
-> Catch OpenAPI contract drift at dev time — before it hits production.
+> Catch OpenAPI contract drift at dev time before it hits production.
 
 Validates TypeScript and Python function return shapes and request parameters against your OpenAPI spec, and fails CI when drift is detected.
 
@@ -24,7 +24,7 @@ csentry check [options]
 | `--spec <path>` | Path to OpenAPI spec (YAML or JSON) |
 | `--files <glob...>` | One or more glob patterns of files to scan |
 | `--ai` | Enable AI-powered drift detection via Anthropic (requires `ANTHROPIC_API_KEY`) |
-| `--audit` | Report violations but always exit `0` — for gradual CI adoption |
+| `--audit` | Report violations but always exit `0` for gradual CI adoption |
 | `--strict` | Exit `1` on any violation including `warn` severity |
 | `--format <fmt>` | Output format: `table` (default) or `json` |
 
@@ -56,11 +56,11 @@ Add `// @route <METHOD> <PATH>` above a function to map it to an OpenAPI endpoin
 ```typescript
 // @route GET /users/{id}
 export function getUser(id: number) {
-  return { id, name: "Alice" }; // ← missing `email` — spec requires it
+  return { id, name: "Alice" }; // ← missing `email`, spec requires it
 }
 
 // @route POST /users
-export function createUser(name: string) { // ← missing `email` param — requestBody requires it
+export function createUser(name: string) { // ← missing `email` param, requestBody requires it
   return { id: 1, name, email: "" };
 }
 ```
@@ -76,7 +76,7 @@ export function getUser(id: number) {
 
 ### Python (FastAPI / Flask)
 
-Route decorators are read directly — no annotation needed:
+Route decorators are read directly, no annotation needed:
 
 ```python
 @router.get("/users/{user_id}")
@@ -110,7 +110,7 @@ async def delete_user(user_id: int):
 
 ## AI-powered detection
 
-Pass `--ai` to layer Anthropic LLM analysis on top of static checks. The AI catches semantic drift that heuristics miss — wrong field semantics, incorrect types on dynamic values, and constraint violations. Each AI violation includes a human-readable explanation:
+Pass `--ai` to layer Anthropic LLM analysis on top of static checks. The AI catches semantic drift that heuristics miss wrong field semantics, incorrect types on dynamic values, and constraint violations. Each AI violation includes a human-readable explanation:
 
 ```bash
 ANTHROPIC_API_KEY=sk-... csentry check --spec openapi.yaml --files 'src/**/*.ts' --ai

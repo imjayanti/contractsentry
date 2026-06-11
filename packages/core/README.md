@@ -1,6 +1,6 @@
 # @contractsentry/core
 
-Core library for ContractSentry — analyzers, validator, reporters, and orchestrator.
+Core library for ContractSentry analyzers, validator, reporters, and orchestrator.
 
 This package is consumed by `@contractsentry/cli`. Use it directly only if you are building a custom integration or extending ContractSentry's behaviour.
 
@@ -49,7 +49,7 @@ const violations = await orchestrator.scan({
 |-------|-------------|
 | `ScanOrchestrator` | Loads the spec, analyses files, validates shapes and request params, and returns violations |
 | `ConsoleReporter` | Prints violations to stdout; shows `explanation` on a second line for AI-sourced violations |
-| `JsonReporter` | Writes `{ violations: [...] }` JSON to stdout — use with `--format json` or piping |
+| `JsonReporter` | Writes `{ violations: [...] }` JSON to stdout use with `--format json` or piping |
 | `FileCodeAnalyzer` | Analyses a TypeScript or Python source file and extracts function shapes |
 | `ContractValidator` | Validates a function's return shape or request params against an OpenAPI schema object |
 | `OpenApiSpecLoader` | Loads and dereferences an OpenAPI 3.x spec (YAML or JSON) |
@@ -68,17 +68,17 @@ const violations = await orchestrator.scan({
 
 | Type | Description |
 |------|-------------|
-| `Violation` | A single contract violation — `file`, `line`, `endpoint`, `field`, `expected`, `found`, `severity` (`"error"` or `"warn"`), `suppressed`, and optional `explanation` (set by AI violations) |
+| `Violation` | A single contract violation -> `file`, `line`, `endpoint`, `field`, `expected`, `found`, `severity` (`"error"` or `"warn"`), `suppressed`, and optional `explanation` (set by AI violations) |
 | `FunctionShape` | The extracted return shape, parameter shape, dynamic flag, endpoint guess, status hint, and suppression state for a function |
-| `CsentryConfig` | Shape of `csentry.config.ts` — `spec`, `files`, `ignore`, `strict`, `audit` |
-| `ScanInput` | Input to `ScanOrchestrator.scan()` — `specPath`, `filePaths`, `useAi` |
+| `CsentryConfig` | Shape of `csentry.config.ts` -> `spec`, `files`, `ignore`, `strict`, `audit` |
+| `ScanInput` | Input to `ScanOrchestrator.scan()` -> `specPath`, `filePaths`, `useAi` |
 
 ### Interfaces
 
 | Interface | Description |
 |-----------|-------------|
-| `IReporter` | `report(violations: Violation[]): void` — implement to build a custom reporter |
-| `IConfigLoader` | `load(dir: string): Promise<CsentryConfig \| null>` — implement to load config from a custom source |
+| `IReporter` | `report(violations: Violation[]): void` -> implement to build a custom reporter |
+| `IConfigLoader` | `load(dir: string): Promise<CsentryConfig \| null>` -> implement to load config from a custom source |
 
 ## More
 

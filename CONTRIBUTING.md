@@ -4,7 +4,7 @@ Thank you for your interest in contributing!
 
 ## Prerequisites
 
-- [mise](https://mise.jdx.dev/getting-started.html) — manages Node, Python, pnpm, and uv
+- [mise](https://mise.jdx.dev/getting-started.html) -> manages Node, Python, pnpm, and uv
 
 ```bash
 # Install mise (macOS / Linux)
@@ -20,9 +20,9 @@ bash scripts/init.sh
 ```
 
 `scripts/init.sh` does the following:
-1. `mise install` — pins Node 22, Python 3.12, pnpm, uv from `.mise.toml`
-2. `pnpm install` — installs turbo, biome, lefthook, changesets
-3. `pnpm lefthook install` — wires pre-commit hooks from `lefthook.yml`
+1. `mise install` -> pins Node 22, Python 3.12, pnpm, uv from `.mise.toml`
+2. `pnpm install` -> installs turbo, biome, lefthook, changesets
+3. `pnpm lefthook install` -> wires pre-commit hooks from `lefthook.yml`
 
 ## Workflow
 
@@ -50,43 +50,43 @@ pnpm format
 
 ```
 packages/
-  core/                     — domain types, analyzers, validator, reporter, orchestrator
+  core/                     -> domain types, analyzers, validator, reporter, orchestrator
     src/
-      domain/               — Violation, FunctionShape, Errors, port interfaces
+      domain/               -> Violation, FunctionShape, Errors, port interfaces
       infrastructure/
-        analyzer/           — TreeSitterTypeScriptAnalyzer, TreeSitterPythonAnalyzer,
+        analyzer/           -> TreeSitterTypeScriptAnalyzer, TreeSitterPythonAnalyzer,
         |                     FileCodeAnalyzer, AiBridgeAnalyzer
-        config/             — CsentryConfigLoader
-        reporter/           — ConsoleReporter
-        scanner/            — ScanOrchestrator
-        spec/               — OpenApiSpecLoader, SchemaExtractor
-        validator/          — ContractValidator
-  cli/                      — csentry CLI
+        config/             -> CsentryConfigLoader
+        reporter/           -> ConsoleReporter
+        scanner/            -> ScanOrchestrator
+        spec/               -> OpenApiSpecLoader, SchemaExtractor
+        validator/          -> ContractValidator
+  cli/                      -> csentry CLI
     src/
-      bin.ts                — Commander entry point
+      bin.ts                -> Commander entry point
       commands/
-        check.ts            — runCheck logic (injectable deps for testing)
-  ai/                       — contractsentry-ai Python module
+        check.ts            -> runCheck logic (injectable deps for testing)
+  ai/                       -> contractsentry-ai Python module
     contractsentry_ai/
-      analyzer.py           — msgspec structs + Anthropic tool use
-      prompts.py            — prompt builder + report_violations tool definition
-      __main__.py           — stdin/stdout subprocess entrypoint
+      analyzer.py           -> msgspec structs + Anthropic tool use
+      prompts.py            -> prompt builder + report_violations tool definition
+      __main__.py           -> stdin/stdout subprocess entrypoint
     tests/
-      test_analyzer.py      — pytest suite with mocked Anthropic responses
+      test_analyzer.py      -> pytest suite with mocked Anthropic responses
   action/
-    action.yml              — GitHub Action composite wrapping csentry check
+    action.yml              -> GitHub Action composite wrapping csentry check
 
 .github/
   workflows/
-    ci.yml                  — build, test, lint, typecheck on push and PRs to main
-    release.yml             — changesets version PR + npm publish on merge to main
+    ci.yml                  -> build, test, lint, typecheck on push and PRs to main
+    release.yml             -> changesets version PR + npm publish on merge to main
 
 examples/
-  petstore/                 — OpenAPI spec + TypeScript routes used as test fixtures
-  fastapi-demo/             — OpenAPI spec + FastAPI routes used as Python test fixtures
+  petstore/                 -> OpenAPI spec + TypeScript routes used as test fixtures
+  fastapi-demo/             -> OpenAPI spec + FastAPI routes used as Python test fixtures
 
 scripts/
-  init.sh                   — one-shot dev environment setup
+  init.sh                   -> one-shot dev environment setup
 ```
 
 ## Pre-commit Hooks
@@ -120,8 +120,8 @@ Two workflows run automatically:
 | `release.yml` | push to `main` | Opens a Version PR when changesets are present; publishes to npm when that PR merges |
 
 The release workflow requires these repository secrets:
-- `NPM_TOKEN` — npm access token with publish rights (`GITHUB_TOKEN` is provided automatically)
-- `ANTHROPIC_API_KEY` — required only for running `csentry check --ai` in CI
+- `NPM_TOKEN` -> npm access token with publish rights (`GITHUB_TOKEN` is provided automatically)
+- `ANTHROPIC_API_KEY` -> required only for running `csentry check --ai` in CI
 
 ## Changesets
 

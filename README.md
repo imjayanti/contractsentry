@@ -3,7 +3,7 @@
 [![CI](https://github.com/imjayanti/contractsentry/actions/workflows/ci.yml/badge.svg)](https://github.com/imjayanti/contractsentry/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@contractsentry/cli)](https://www.npmjs.com/package/@contractsentry/cli)
 
-> Catch OpenAPI contract drift at dev time — before it hits production.
+> Catch OpenAPI contract drift at dev time before it hits production.
 
 AI coding tools (Copilot, Cursor, Claude Code) generate code that silently drifts from your OpenAPI contracts. ContractSentry is an open-source CLI that validates your TypeScript return shapes and request parameters against your spec and fails CI when drift is detected.
 
@@ -55,21 +55,21 @@ When a config file is present, running `csentry check` with no flags is sufficie
 
 ### Annotating your code
 
-**TypeScript** — ContractSentry reads `// @route <METHOD> <PATH>` comments:
+**TypeScript** -> ContractSentry reads `// @route <METHOD> <PATH>` comments:
 
 ```typescript
 // @route GET /users/{id}
 export function getUser(id: number) {
-  return { id, name: "Alice" }; // ← missing `email` — spec requires it
+  return { id, name: "Alice" }; // ← missing `email` -> spec requires it
 }
 
 // @route POST /users
-export function createUser(name: string) { // ← missing `email` param — requestBody requires it
+export function createUser(name: string) { // ← missing `email` param -> requestBody requires it
   return { id: 1, name, email: "" };
 }
 ```
 
-**Python (FastAPI / Flask)** — ContractSentry reads route decorators directly:
+**Python (FastAPI / Flask)** -> ContractSentry reads route decorators directly:
 
 ```python
 @router.get("/users/{user_id}")
@@ -108,7 +108,7 @@ async def delete_user(user_id: int):
 
 ### AI-powered detection
 
-Pass `--ai` to layer Anthropic LLM analysis on top of static checks. The AI catches semantic drift that heuristics miss — wrong field semantics, incorrect types on dynamic values, and constraint violations:
+Pass `--ai` to layer Anthropic LLM analysis on top of static checks. The AI catches semantic drift that heuristics miss wrong field semantics, incorrect types on dynamic values, and constraint violations:
 
 ```bash
 ANTHROPIC_API_KEY=sk-... csentry check --spec openapi.yaml --files 'src/**/*.ts' --ai
@@ -122,7 +122,7 @@ AI violations are deduplicated against static findings so you never see the same
 |-------|----------|-------------|
 | Missing response field | `error` | A required field from the 2xx response schema is absent from the return shape |
 | Missing request param | `error` | A required field from the `requestBody` schema is absent from the function's parameters |
-| Dynamic return | `warn` | A `@route`-annotated function returns a non-static expression (call, identifier, etc.) — ContractSentry cannot analyse it statically |
+| Dynamic return | `warn` | A `@route`-annotated function returns a non-static expression (call, identifier, etc.) ContractSentry cannot analyse it statically |
 
 ### Output
 
@@ -190,9 +190,9 @@ Or invoke the CLI directly:
 
 | Package | Description |
 |---------|-------------|
-| [`@contractsentry/cli`](packages/cli) | `csentry` CLI — the main entry point |
+| [`@contractsentry/cli`](packages/cli) | `csentry` CLI -> the main entry point |
 | [`@contractsentry/core`](packages/core) | Analyzers, validator, reporter, orchestrator |
-| [`contractsentry-ai`](packages/ai) | Python module — LLM drift detection via Anthropic tool use |
+| [`contractsentry-ai`](packages/ai) | Python module -> LLM drift detection via Anthropic tool use |
 | [`action.yml`](action.yml) | GitHub Action composite wrapping `csentry check` |
 
 ---
