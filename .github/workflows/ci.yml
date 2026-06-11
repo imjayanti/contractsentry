@@ -72,10 +72,9 @@ jobs:
         run: |
           node packages/cli/dist/bin.js check \
             --spec examples/petstore/openapi.yaml \
-            --files 'examples/petstore/routes/*.ts'
-          EXIT=$?
-          if [ $EXIT -ne 1 ]; then
-            echo "Smoke test failed: expected exit 1 (violations found), got $EXIT"
+            --files 'examples/petstore/routes/*.ts' || EXIT=$?
+          if [ "${EXIT:-0}" -ne 1 ]; then
+            echo "Smoke test failed: expected exit 1, got ${EXIT:-0}"
             exit 1
           fi
           echo "Smoke test passed"
