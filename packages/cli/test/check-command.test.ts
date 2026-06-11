@@ -276,3 +276,58 @@ describe("runCheck — --ai flag", () => {
     );
   });
 });
+
+describe("runCheck — --audit flag", () => {
+  it("returns 0 even when there are error violations", async () => {
+    const scan = vi.fn().mockResolvedValue([violation()]);
+    const code = await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts", audit: true },
+      makeDeps({ orchestrator: { scan } }),
+    );
+    expect(code).toBe(0);
+  });
+
+  it("still reports violations to the reporter", async () => {
+    const report = vi.fn();
+    const scan = vi.fn().mockResolvedValue([violation()]);
+    await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts", audit: true },
+      makeDeps({ orchestrator: { scan }, reporter: { report } }),
+    );
+    expect(report).toHaveBeenCalledWith(expect.arrayContaining([violation()]));
+  });
+});
+
+describe("runCheck — --strict flag", () => {
+  it("returns 1 when there are only warn violations", async () => {
+    const scan = vi.fn().mockResolvedValue([violation({ severity: "warn" })]);
+    const code = await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts", strict: true },
+      makeDeps({ orchestrator: { scan } }),
+    );
+    expect(code).toBe(1);
+  });
+
+  it("returns 0 when all violations are suppressed", async () => {
+    const scan = vi
+      .fn()
+      .mockResolvedValue([violation({ severity: "warn", suppressed: true })]);
+    const code = await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts", strict: true },
+      makeDeps({ orchestrator: { scan } }),
+    );
+    expect(code).toBe(0);
+  });
+});
+
+describe("runCheck — --format flag", () => {
+  it("uses JsonReporter when format is json", async () => {
+    const report = vi.fn();
+    const scan = vi.fn().mockResolvedValue([]);
+    await runCheck(
+      { spec: "openapi.yaml", files: "src/**/*.ts", format: "json" },
+      makeDeps({ orchestrator: { scan }, reporter: { report } }),
+    );
+    expect(report).toHaveBeenCalled();
+  });
+});
