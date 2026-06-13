@@ -1,5 +1,11 @@
 # @contractsentry/cli
 
+## 0.3.4
+
+### Patch Changes
+
+- 46528d4: Sync contractsentry-ai Python package to 0.5.0
+
 ## 0.3.3
 
 ### Patch Changes
