@@ -242,3 +242,108 @@ describe("TreeSitterPythonAnalyzer — edge cases", () => {
     expect(shapes[0]?.returnShape).toEqual({ status: "'ok'" });
   });
 });
+
+describe("TreeSitterPythonAnalyzer — prefix detection", () => {
+  it("prepends APIRouter(prefix=...) to route paths", () => {
+    const source = [
+      'router = APIRouter(prefix="/users")',
+      '@router.get("/{user_id}")',
+      "async def get_user(user_id: int):",
+      "    return {'id': 1}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(shapes[0]?.endpointGuess).toBe("GET /users/{user_id}");
+  });
+
+  it("prepends APIRouter prefix for multiple HTTP methods", () => {
+    const source = [
+      'router = APIRouter(prefix="/items")',
+      '@router.get("/")',
+      "async def list_items():",
+      "    return {'items': []}",
+      '@router.post("/")',
+      "async def create_item():",
+      "    return {'id': 1}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(shapes.find((s) => s.endpointGuess === "GET /items/")).toBeDefined();
+    expect(
+      shapes.find((s) => s.endpointGuess === "POST /items/"),
+    ).toBeDefined();
+  });
+
+  it("ignores APIRouter() with no prefix kwarg", () => {
+    const source = [
+      "router = APIRouter()",
+      '@router.get("/users")',
+      "async def list_users():",
+      "    return {}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(shapes[0]?.endpointGuess).toBe("GET /users");
+  });
+
+  it("applies # csentry-prefix to all routes in the file", () => {
+    const source = [
+      "# csentry-prefix /api/v1",
+      '@router.get("/users")',
+      "async def list_users():",
+      "    return {}",
+      '@router.post("/users")',
+      "async def create_user():",
+      "    return {}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(
+      shapes.find((s) => s.endpointGuess === "GET /api/v1/users"),
+    ).toBeDefined();
+    expect(
+      shapes.find((s) => s.endpointGuess === "POST /api/v1/users"),
+    ).toBeDefined();
+  });
+
+  it("combines # csentry-prefix with APIRouter(prefix=...)", () => {
+    const source = [
+      "# csentry-prefix /api/v1",
+      'router = APIRouter(prefix="/users")',
+      '@router.get("/{id}")',
+      "async def get_user(id: int):",
+      "    return {'id': 1}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(shapes[0]?.endpointGuess).toBe("GET /api/v1/users/{id}");
+  });
+
+  it("does not apply prefix to routes on a different router variable", () => {
+    const source = [
+      'users_router = APIRouter(prefix="/users")',
+      '@app.get("/health")',
+      "async def health():",
+      "    return {'ok': True}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(shapes[0]?.endpointGuess).toBe("GET /health");
+  });
+
+  it("avoids double slash when prefix has a trailing slash", () => {
+    const source = [
+      'router = APIRouter(prefix="/users/")',
+      '@router.get("/{id}")',
+      "async def get_user(id: int):",
+      "    return {'id': 1}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(shapes[0]?.endpointGuess).toBe("GET /users/{id}");
+  });
+
+  it("avoids double slash when csentry-prefix has a trailing slash", () => {
+    const source = [
+      "# csentry-prefix /api/v1/",
+      '@router.get("/users")',
+      "async def list_users():",
+      "    return {}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(shapes[0]?.endpointGuess).toBe("GET /api/v1/users");
+  });
+});

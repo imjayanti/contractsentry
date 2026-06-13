@@ -45,16 +45,73 @@ export class TreeSitterPythonAnalyzer {
   analyze(source: string): FunctionShape[] {
     if (!source.trim()) return [];
     const tree = this.parser.parse(source);
+    const filePrefix = this.extractFileLevelPrefix(source);
+    const routerPrefixes = this.collectRouterPrefixes(tree.rootNode);
     const shapes: FunctionShape[] = [];
     for (const child of tree.rootNode.namedChildren) {
       if (child.type !== "decorated_definition") continue;
-      const shape = this.fromDecoratedDef(child);
+      const shape = this.fromDecoratedDef(child, filePrefix, routerPrefixes);
       if (shape) shapes.push(shape);
     }
     return shapes;
   }
 
-  private fromDecoratedDef(node: SyntaxNode): FunctionShape | null {
+  // Scans source lines for `# csentry-prefix /path` — used when a router is
+  // mounted via include_router in another file and the prefix can't be inferred.
+  private extractFileLevelPrefix(source: string): string {
+    for (const line of source.split("\n")) {
+      const match = /^#\s*csentry-prefix\s+(\/\S*)/.exec(line.trim());
+      if (match) return match[1];
+    }
+    return "";
+  }
+
+  // Collects `varName = APIRouter(prefix="/path")` assignments so we can
+  // prepend the prefix to every route decorated with that router variable.
+  private collectRouterPrefixes(root: SyntaxNode): Map<string, string> {
+    const prefixes = new Map<string, string>();
+    for (const node of root.namedChildren) {
+      if (node.type !== "expression_statement") continue;
+      const assign = node.namedChildren[0];
+      if (assign?.type !== "assignment") continue;
+      const left = assign.childForFieldName("left");
+      const right = assign.childForFieldName("right");
+      if (
+        !left ||
+        !right ||
+        left.type !== "identifier" ||
+        right.type !== "call"
+      )
+        continue;
+      const fn = right.childForFieldName("function");
+      if (fn?.type !== "identifier" || fn.text !== "APIRouter") continue;
+      const args = right.childForFieldName("arguments");
+      if (!args) continue;
+      const prefix = this.extractPrefixKwarg(args);
+      if (prefix !== null) prefixes.set(left.text, prefix);
+    }
+    return prefixes;
+  }
+
+  private extractPrefixKwarg(argList: SyntaxNode): string | null {
+    for (const arg of argList.namedChildren) {
+      if (arg.type !== "keyword_argument") continue;
+      const name = arg.childForFieldName("name");
+      const val = arg.childForFieldName("value");
+      if (name?.text !== "prefix" || val?.type !== "string") continue;
+      const content = val.namedChildren.find(
+        (c) => c.type === "string_content",
+      );
+      return content?.text ?? null;
+    }
+    return null;
+  }
+
+  private fromDecoratedDef(
+    node: SyntaxNode,
+    filePrefix: string,
+    routerPrefixes: Map<string, string>,
+  ): FunctionShape | null {
     const suppressed = this.isSuppressed(node);
     const decorator = node.children.find((child) => child.type === "decorator");
     const funcDef = node.children.find(
@@ -62,7 +119,11 @@ export class TreeSitterPythonAnalyzer {
     );
     if (!decorator || !funcDef) return null;
 
-    const endpointGuess = this.extractEndpoint(decorator);
+    const endpointGuess = this.extractEndpoint(
+      decorator,
+      filePrefix,
+      routerPrefixes,
+    );
     if (endpointGuess === null) return null;
 
     const nameNode = funcDef.childForFieldName("name");
@@ -94,7 +155,11 @@ export class TreeSitterPythonAnalyzer {
     return false;
   }
 
-  private extractEndpoint(decorator: SyntaxNode): string | null {
+  private extractEndpoint(
+    decorator: SyntaxNode,
+    filePrefix: string,
+    routerPrefixes: Map<string, string>,
+  ): string | null {
     const callNode = decorator.children.find((child) => child.type === "call");
     if (!callNode) return null;
 
@@ -117,7 +182,7 @@ export class TreeSitterPythonAnalyzer {
       (c) => c.type === "string_content",
     );
     if (!pathContent) return null;
-    const path = pathContent.text;
+    const localPath = pathContent.text;
 
     let method: string;
     if (methodName === "route") {
@@ -130,6 +195,20 @@ export class TreeSitterPythonAnalyzer {
     } else {
       return null;
     }
+
+    // Prepend prefixes: file-level prefix (from # csentry-prefix or include_router)
+    // followed by the router variable's own prefix (from APIRouter(prefix=...)).
+    const routerObj = funcNode.childForFieldName("object");
+    const routerPrefix =
+      routerObj?.type === "identifier"
+        ? (routerPrefixes.get(routerObj.text) ?? "")
+        : "";
+    // Strip trailing slashes from each prefix segment to avoid double slashes
+    // when the prefix ends with "/" and the local path starts with "/".
+    const path =
+      filePrefix.replace(/\/$/, "") +
+      routerPrefix.replace(/\/$/, "") +
+      localPath;
 
     return `${method} ${path}`;
   }
