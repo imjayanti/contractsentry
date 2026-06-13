@@ -55,17 +55,31 @@ When a config file is present, running `csentry check` with no flags is sufficie
 
 ### Annotating your code
 
-**TypeScript** -> ContractSentry reads `// @route <METHOD> <PATH>` comments:
+**TypeScript (Express / Hono / Fastify)** -> ContractSentry auto-detects routes from inline handler calls — no annotations required:
+
+```typescript
+// Express
+router.get('/users/:id', async (req, res) => {
+  res.json({ id: 1, name: 'Alice' }); // ← missing `email` -> spec requires it
+});
+
+// Hono
+app.post('/users', async (c) => c.json({ id: 1, name: 'Alice' }));
+
+// Fastify (return-based)
+fastify.get('/users/:id', async (req, reply) => {
+  return { id: 1, name: 'Alice' };
+});
+```
+
+Express `:param` path segments are automatically converted to OpenAPI `{param}` format.
+
+Routes where the handler is a named reference (`router.get('/users', userController.getUser)`) are not auto-detected — use a `// @route` annotation on the handler definition instead:
 
 ```typescript
 // @route GET /users/{id}
-export function getUser(id: number) {
-  return { id, name: "Alice" }; // ← missing `email` -> spec requires it
-}
-
-// @route POST /users
-export function createUser(name: string) { // ← missing `email` param -> requestBody requires it
-  return { id: 1, name, email: "" };
+export async function getUser(req: Request, res: Response) {
+  res.json({ id: 1, name: 'Alice' }); // ← missing `email` -> spec requires it
 }
 ```
 
@@ -122,7 +136,7 @@ AI violations are deduplicated against static findings so you never see the same
 |-------|----------|-------------|
 | Missing response field | `error` | A required field from the 2xx response schema is absent from the return shape |
 | Missing request param | `error` | A required field from the `requestBody` schema is absent from the function's parameters |
-| Dynamic return | `warn` | A `@route`-annotated function returns a non-static expression (call, identifier, etc.) ContractSentry cannot analyse it statically |
+| Dynamic return | `warn` | A detected route handler returns a non-static expression (call, identifier, etc.) — ContractSentry cannot analyse it statically |
 
 ### Output
 
@@ -179,10 +193,11 @@ Or invoke the CLI directly:
 
 ## Supported Languages
 
-| Language   | Framework Support         | Status    |
-|------------|--------------------------|-----------|
-| TypeScript | Express, Fastify, NestJS | ✅ v0.1.0 |
-| Python     | FastAPI, Flask           | ✅ v0.2.0 |
+| Language   | Detection method | Frameworks | Status |
+|------------|-----------------|------------|--------|
+| TypeScript | Auto-detect inline handlers | Express, Hono, Fastify | ✅ v0.4.0 |
+| TypeScript | `// @route METHOD /path` annotation | Any | ✅ v0.1.0 |
+| Python     | Auto-detect decorators | FastAPI, Flask | ✅ v0.2.0 |
 
 ---
 
