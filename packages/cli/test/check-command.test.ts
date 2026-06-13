@@ -1,6 +1,10 @@
 import { JsonReporter, type Violation } from "@contractsentry/core";
 import { describe, expect, it, vi } from "vitest";
-import { type CheckDeps, runCheck } from "../src/commands/check.js";
+import {
+  type CheckDeps,
+  runCheck,
+  runCheckWatch,
+} from "../src/commands/check.js";
 
 function makeDeps(overrides: Partial<CheckDeps> = {}): CheckDeps {
   return {
@@ -376,6 +380,97 @@ describe("runCheck — config.ignore", () => {
       }),
     );
     expect(report).toHaveBeenCalledWith([v]);
+  });
+});
+
+describe("runCheckWatch", () => {
+  function makeWatchDeps(overrides: Partial<CheckDeps> = {}): CheckDeps {
+    return {
+      orchestrator: { scan: vi.fn().mockResolvedValue([]) },
+      reporter: { report: vi.fn() },
+      configLoader: { load: vi.fn().mockResolvedValue(null) },
+      expandGlobs: vi.fn().mockResolvedValue(["src/routes/users.ts"]),
+      createWatcher: vi.fn().mockReturnValue({ close: vi.fn() }),
+      ...overrides,
+    };
+  }
+
+  it("calls runCheck immediately on start", async () => {
+    const scan = vi.fn().mockResolvedValue([]);
+    const deps = makeWatchDeps({ orchestrator: { scan } });
+
+    // Abort via SIGINT after first run completes
+    const watchPromise = runCheckWatch(
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
+      deps,
+    );
+    // Give the initial run time to complete then send SIGINT
+    await new Promise((r) => setTimeout(r, 20));
+    process.emit("SIGINT");
+    await watchPromise;
+
+    expect(scan).toHaveBeenCalledTimes(1);
+  });
+
+  it("sets up a watcher for each file and the spec", async () => {
+    const createWatcher = vi.fn().mockReturnValue({ close: vi.fn() });
+    const deps = makeWatchDeps({ createWatcher });
+
+    const watchPromise = runCheckWatch(
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
+      deps,
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    process.emit("SIGINT");
+    await watchPromise;
+
+    // spec + 1 expanded file = 2 watchers
+    expect(createWatcher).toHaveBeenCalledTimes(2);
+    const paths = createWatcher.mock.calls.map((c) => c[0]);
+    expect(paths).toContain("openapi.yaml");
+    expect(paths).toContain("src/routes/users.ts");
+  });
+
+  it("closes all watchers on SIGINT", async () => {
+    const close = vi.fn();
+    const deps = makeWatchDeps({
+      createWatcher: vi.fn().mockReturnValue({ close }),
+    });
+
+    const watchPromise = runCheckWatch(
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
+      deps,
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    process.emit("SIGINT");
+    await watchPromise;
+
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("re-runs check when watcher triggers after debounce", async () => {
+    const scan = vi.fn().mockResolvedValue([]);
+    let triggerChange: (() => void) | undefined;
+    const createWatcher = vi.fn().mockImplementation((_path, listener) => {
+      triggerChange = listener;
+      return { close: vi.fn() };
+    });
+    const deps = makeWatchDeps({ orchestrator: { scan }, createWatcher });
+
+    const watchPromise = runCheckWatch(
+      { spec: "openapi.yaml", files: ["src/**/*.ts"] },
+      deps,
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    // Trigger a file change and wait for debounce (150ms) + run
+    triggerChange?.();
+    await new Promise((r) => setTimeout(r, 200));
+
+    process.emit("SIGINT");
+    await watchPromise;
+
+    expect(scan).toHaveBeenCalledTimes(2);
   });
 });
 

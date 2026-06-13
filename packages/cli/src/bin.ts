@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { createRequire } from "node:module";
 import { program } from "commander";
-import { type CheckOptions, runCheck } from "./commands/check.js";
+import {
+  type CheckOptions,
+  runCheck,
+  runCheckWatch,
+} from "./commands/check.js";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
@@ -23,6 +27,7 @@ program
     "--files <glob...>",
     "glob pattern(s) of TypeScript/JavaScript files to scan",
   )
+  .option("--watch", "re-run on file changes")
   .option("--ai", "enable AI-powered drift detection via Anthropic")
   .option(
     "--audit",
@@ -36,8 +41,13 @@ program
   )
   .action(async (opts: CheckOptions) => {
     try {
-      const code = await runCheck(opts);
-      process.exit(code);
+      if (opts.watch) {
+        await runCheckWatch(opts);
+        process.exit(0);
+      } else {
+        const code = await runCheck(opts);
+        process.exit(code);
+      }
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
       process.exit(2);

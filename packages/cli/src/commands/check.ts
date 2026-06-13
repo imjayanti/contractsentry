@@ -1,3 +1,4 @@
+import { watch as fsWatch } from "node:fs";
 import { relative } from "node:path";
 import {
   ConsoleReporter,
@@ -16,6 +17,7 @@ export interface CheckDeps {
   reporter?: IReporter;
   configLoader?: IConfigLoader;
   expandGlobs?: (patterns: string[], cwd: string) => Promise<string[]>;
+  createWatcher?: (path: string, listener: () => void) => { close(): void };
 }
 
 export interface CheckOptions {
@@ -25,6 +27,7 @@ export interface CheckOptions {
   audit?: boolean;
   strict?: boolean;
   format?: "table" | "json";
+  watch?: boolean;
 }
 
 function matchesGlob(filePath: string, pattern: string): boolean {
@@ -96,4 +99,77 @@ export async function runCheck(
       );
 
   return hasViolation ? 1 : 0;
+}
+
+export async function runCheckWatch(
+  options: CheckOptions,
+  deps: CheckDeps = {},
+): Promise<void> {
+  const {
+    configLoader = new CsentryConfigLoader(),
+    expandGlobs = (patterns, cwd) => fg(patterns, { cwd, absolute: true }),
+    createWatcher = (path, listener) => {
+      const w = fsWatch(path, listener);
+      return { close: () => w.close() };
+    },
+  } = deps;
+
+  const cwd = process.cwd();
+  const config = await configLoader.load(cwd);
+  const specPath = options.spec ?? config?.spec;
+  const fileGlobs: string[] = options.files ?? config?.files ?? [];
+
+  if (!specPath) {
+    throw new Error(
+      "No spec path — pass --spec or set spec in csentry.config.ts",
+    );
+  }
+  if (fileGlobs.length === 0) {
+    throw new Error(
+      "No files glob — pass --files or set files in csentry.config.ts",
+    );
+  }
+
+  const run = async () => {
+    console.clear();
+    await runCheck(options, deps);
+    const filePaths = await expandGlobs(fileGlobs, cwd);
+    const watchCount = new Set([specPath, ...filePaths]).size;
+    process.stderr.write(
+      `\nWatching ${watchCount} file(s) for changes… (Ctrl+C to stop)\n`,
+    );
+  };
+
+  await run();
+
+  const filePaths = await expandGlobs(fileGlobs, cwd);
+  const toWatch = [...new Set([specPath, ...filePaths])];
+
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const trigger = () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      run().catch((err: unknown) => {
+        console.error(err instanceof Error ? err.message : String(err));
+      });
+    }, 150);
+  };
+
+  const watchers = toWatch.flatMap((filePath) => {
+    try {
+      return [createWatcher(filePath, trigger)];
+    } catch {
+      return [];
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    const onSigint = () => {
+      for (const w of watchers) w.close();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      process.off("SIGINT", onSigint);
+      resolve();
+    };
+    process.on("SIGINT", onSigint);
+  });
 }
