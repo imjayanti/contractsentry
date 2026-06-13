@@ -15,6 +15,18 @@ const { typescript } = require("tree-sitter-typescript") as {
 
 const ROUTE_ANNOTATION_RE = /\/\/\s*@route\s+(\S+\s+\S+)(?:\s+(\d{3}))?/;
 
+const HTTP_METHODS = new Set([
+  "get",
+  "post",
+  "put",
+  "patch",
+  "delete",
+  "head",
+  "options",
+]);
+
+const RESPONSE_JSON_METHODS = new Set(["json", "send"]);
+
 type ShapeResult = {
   returnShape: FieldShapeRecord | null;
   isDynamic: boolean;
@@ -71,6 +83,8 @@ export class TreeSitterTypeScriptAnalyzer {
       const shape = this.fromExport(child);
       if (shape) shapes.push(shape);
     }
+
+    shapes.push(...this.extractFrameworkRoutes(tree.rootNode));
 
     return shapes;
   }
@@ -343,5 +357,137 @@ export class TreeSitterTypeScriptAnalyzer {
       default:
         return null;
     }
+  }
+
+  // ── Framework route auto-detection (Express / Hono / Fastify) ────────────
+
+  private extractFrameworkRoutes(root: SyntaxNode): FunctionShape[] {
+    const results: FunctionShape[] = [];
+    this.walkForRoutes(root, results);
+    return results;
+  }
+
+  private walkForRoutes(node: SyntaxNode, results: FunctionShape[]): void {
+    if (node.type === "call_expression") {
+      const shape = this.tryExtractRouteCall(node);
+      if (shape) results.push(shape);
+    }
+    for (const child of node.namedChildren) {
+      this.walkForRoutes(child, results);
+    }
+  }
+
+  private tryExtractRouteCall(node: SyntaxNode): FunctionShape | null {
+    const fn = node.childForFieldName("function");
+    if (fn?.type !== "member_expression") return null;
+
+    const propertyNode = fn.childForFieldName("property");
+    if (!propertyNode) return null;
+
+    const method = propertyNode.text.toLowerCase();
+    if (!HTTP_METHODS.has(method)) return null;
+
+    const argsNode = node.childForFieldName("arguments");
+    if (!argsNode) return null;
+
+    const argChildren = argsNode.namedChildren;
+    if (argChildren.length < 2) return null;
+
+    // First arg must be a string literal (the route path)
+    const firstArg = argChildren[0];
+    if (firstArg.type !== "string") return null;
+
+    // Strip quotes; convert Express :param to OpenAPI {param}
+    const rawPath = firstArg.text.slice(1, -1);
+    const path = rawPath.replace(/:([^/{}]+)/g, "{$1}");
+
+    // Last arg must be an inline function (arrow or function expression)
+    const lastArg = argChildren[argChildren.length - 1];
+    if (lastArg.type !== "arrow_function" && lastArg.type !== "function") {
+      return null;
+    }
+
+    const handlerBody = lastArg.childForFieldName("body");
+    const { returnShape, isDynamic } = handlerBody
+      ? this.extractHandlerShape(handlerBody)
+      : EMPTY_SHAPE;
+
+    const objectNode = fn.childForFieldName("object");
+    const name = `${objectNode?.text ?? "router"}.${method}("${rawPath}")`;
+
+    return {
+      name,
+      endpointGuess: `${method.toUpperCase()} ${path}`,
+      statusHint: null,
+      returnShape,
+      paramShape: null,
+      line: node.startPosition.row + 1,
+      suppressed: false,
+      isDynamic,
+    };
+  }
+
+  private extractHandlerShape(body: SyntaxNode): ShapeResult {
+    // Expression body: `async (c) => c.json({...})` — body IS the call_expression
+    if (body.type !== "statement_block") {
+      const jsonResult = this.tryExtractJsonCallResult(body);
+      if (jsonResult !== null) return jsonResult;
+      return this.shapeFromArrowBody(body);
+    }
+
+    // Block body: find res.json({...}) / c.json({...}) / reply.send({...}) etc.
+    const jsonResult = this.collectJsonCallResult(body);
+    if (jsonResult !== null) return jsonResult;
+
+    return this.shapeFromBlock(body);
+  }
+
+  /**
+   * If `node` is a response json call, return its ShapeResult.
+   * Returns { returnShape, isDynamic: false } for object literal args,
+   * { returnShape: null, isDynamic: true } for dynamic args, or null if not a json call.
+   */
+  private tryExtractJsonCallResult(node: SyntaxNode): ShapeResult | null {
+    if (node.type !== "call_expression") return null;
+
+    const fn = node.childForFieldName("function");
+    if (fn?.type !== "member_expression") return null;
+
+    const prop = fn.childForFieldName("property");
+    if (!prop || !RESPONSE_JSON_METHODS.has(prop.text)) return null;
+
+    const callArgs = node.childForFieldName("arguments");
+    const firstCallArg = callArgs?.namedChild(0);
+    if (!firstCallArg) return { returnShape: null, isDynamic: false };
+
+    if (firstCallArg.type === "object") {
+      return {
+        returnShape: this.keysFromObject(firstCallArg),
+        isDynamic: false,
+      };
+    }
+
+    return {
+      returnShape: null,
+      isDynamic: DYNAMIC_NODE_TYPES.has(firstCallArg.type),
+    };
+  }
+
+  private collectJsonCallResult(node: SyntaxNode): ShapeResult | null {
+    let lastResult: ShapeResult | null = null;
+    for (const child of node.namedChildren) {
+      if (child.type === "call_expression") {
+        const result = this.tryExtractJsonCallResult(child);
+        if (result !== null) {
+          lastResult = result;
+          continue;
+        }
+      }
+      if (!FUNCTION_SCOPE_TYPES.has(child.type)) {
+        const nested = this.collectJsonCallResult(child);
+        if (nested !== null) lastResult = nested;
+      }
+    }
+    return lastResult;
   }
 }

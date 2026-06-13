@@ -812,3 +812,96 @@ describe("TreeSitterTypeScriptAnalyzer — nested block returns", () => {
     expect(shapes[0]?.returnShape).toEqual({ id: "integer" });
   });
 });
+
+describe("TreeSitterTypeScriptAnalyzer — framework route auto-detection", () => {
+  const analyzer = new TreeSitterTypeScriptAnalyzer();
+
+  it("detects Express router.get with res.json block body", () => {
+    const source = [
+      "router.get('/users/:id', async (req, res) => {",
+      "  res.json({ id: 1, name: 'Alice' });",
+      "});",
+    ].join("\n");
+    const shapes = analyzer.analyze(source);
+    const route = shapes.find((s) => s.endpointGuess === "GET /users/{id}");
+    expect(route).toBeDefined();
+    expect(route?.returnShape).toEqual({ id: "integer", name: "'Alice'" });
+  });
+
+  it("detects Hono app.post with c.json expression body", () => {
+    const source =
+      "app.post('/users', async (c) => c.json({ created: true }));";
+    const shapes = analyzer.analyze(source);
+    const route = shapes.find((s) => s.endpointGuess === "POST /users");
+    expect(route).toBeDefined();
+    expect(route?.returnShape).toEqual({ created: "boolean" });
+  });
+
+  it("normalises Express :param to OpenAPI {param} in endpointGuess", () => {
+    const source =
+      "router.delete('/users/:id/posts/:postId', (req, res) => { res.json({ ok: true }); });";
+    const shapes = analyzer.analyze(source);
+    const route = shapes.find(
+      (s) => s.endpointGuess === "DELETE /users/{id}/posts/{postId}",
+    );
+    expect(route).toBeDefined();
+  });
+
+  it("ignores route calls where first arg is not a string literal", () => {
+    const source =
+      "router.get(pathVar, (req, res) => { res.json({ id: 1 }); });";
+    const shapes = analyzer.analyze(source);
+    expect(shapes.filter((s) => s.endpointGuess !== null)).toHaveLength(0);
+  });
+
+  it("ignores route calls where last arg is not an inline function", () => {
+    const source = "router.get('/users', namedHandler);";
+    const shapes = analyzer.analyze(source);
+    expect(shapes.filter((s) => s.endpointGuess !== null)).toHaveLength(0);
+  });
+
+  it("detects route with middleware args before handler", () => {
+    const source = [
+      "router.post('/items', authMiddleware, validateBody, async (req, res) => {",
+      "  res.json({ id: 99 });",
+      "});",
+    ].join("\n");
+    const shapes = analyzer.analyze(source);
+    const route = shapes.find((s) => s.endpointGuess === "POST /items");
+    expect(route).toBeDefined();
+    expect(route?.returnShape).toEqual({ id: "integer" });
+  });
+
+  it("sets isDynamic: true when handler returns a dynamic res.json argument", () => {
+    const source = [
+      "router.get('/users', (req, res) => {",
+      "  res.json(userService.getAll());",
+      "});",
+    ].join("\n");
+    const shapes = analyzer.analyze(source);
+    const route = shapes.find((s) => s.endpointGuess === "GET /users");
+    expect(route?.isDynamic).toBe(true);
+  });
+
+  it("falls back to return statement when no res.json found", () => {
+    const source = [
+      "fastify.get('/ping', async (req, reply) => {",
+      "  return { pong: true };",
+      "});",
+    ].join("\n");
+    const shapes = analyzer.analyze(source);
+    const route = shapes.find((s) => s.endpointGuess === "GET /ping");
+    expect(route).toBeDefined();
+    expect(route?.returnShape).toEqual({ pong: "boolean" });
+  });
+
+  it("does not duplicate routes already captured via @route annotation", () => {
+    const source = [
+      "// @route GET /users",
+      "export function getUsers() { return { users: [] }; }",
+    ].join("\n");
+    const shapes = analyzer.analyze(source);
+    const routes = shapes.filter((s) => s.endpointGuess === "GET /users");
+    expect(routes).toHaveLength(1);
+  });
+});
