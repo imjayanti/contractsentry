@@ -66,14 +66,20 @@ export class TreeSitterPythonAnalyzer {
     return "";
   }
 
-  // Collects `varName = APIRouter(prefix="/path")` assignments so we can
-  // prepend the prefix to every route decorated with that router variable.
+  // Collects `varName = APIRouter(prefix="/path")` assignments (including
+  // type-annotated form `varName: APIRouter = APIRouter(prefix="/path")`)
+  // so we can prepend the prefix to every route decorated with that router variable.
   private collectRouterPrefixes(root: SyntaxNode): Map<string, string> {
     const prefixes = new Map<string, string>();
     for (const node of root.namedChildren) {
+      // Both plain assignments and annotated assignments (`x: T = ...`) live
+      // directly under expression_statement in tree-sitter-python.
       if (node.type !== "expression_statement") continue;
       const assign = node.namedChildren[0];
-      if (assign?.type !== "assignment") continue;
+      if (!assign) continue;
+      const isPlain = assign.type === "assignment";
+      const isAnnotated = assign.type === "annotated_assignment";
+      if (!isPlain && !isAnnotated) continue;
       const left = assign.childForFieldName("left");
       const right = assign.childForFieldName("right");
       if (

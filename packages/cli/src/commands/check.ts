@@ -1,5 +1,5 @@
 import { watch as fsWatch } from "node:fs";
-import { relative } from "node:path";
+import { join, relative } from "node:path";
 import {
   ConsoleReporter,
   CsentryConfigLoader,
@@ -143,7 +143,9 @@ export async function runCheckWatch(
   await run();
 
   const filePaths = await expandGlobs(fileGlobs, cwd);
-  const toWatch = [...new Set([specPath, ...filePaths])];
+  // Include csentry.config.ts so config changes trigger a re-run.
+  const configFilePath = join(cwd, "csentry.config.ts");
+  const toWatch = [...new Set([specPath, ...filePaths, configFilePath])];
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   const trigger = () => {
@@ -165,9 +167,10 @@ export async function runCheckWatch(
 
   await new Promise<void>((resolve) => {
     const onSigint = () => {
+      // Remove handler first to prevent double-fire during cleanup.
+      process.off("SIGINT", onSigint);
       for (const w of watchers) w.close();
       if (debounceTimer) clearTimeout(debounceTimer);
-      process.off("SIGINT", onSigint);
       resolve();
     };
     process.on("SIGINT", onSigint);

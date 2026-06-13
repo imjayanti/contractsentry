@@ -336,6 +336,17 @@ describe("TreeSitterPythonAnalyzer — prefix detection", () => {
     expect(shapes[0]?.endpointGuess).toBe("GET /users/{id}");
   });
 
+  it("detects prefix on type-annotated APIRouter assignment", () => {
+    const source = [
+      'router: APIRouter = APIRouter(prefix="/users")',
+      '@router.get("/{id}")',
+      "async def get_user(id: int):",
+      "    return {'id': 1}",
+    ].join("\n");
+    const shapes = new TreeSitterPythonAnalyzer().analyze(source);
+    expect(shapes[0]?.endpointGuess).toBe("GET /users/{id}");
+  });
+
   it("avoids double slash when csentry-prefix has a trailing slash", () => {
     const source = [
       "# csentry-prefix /api/v1/",

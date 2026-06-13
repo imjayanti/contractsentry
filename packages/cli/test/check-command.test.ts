@@ -412,7 +412,7 @@ describe("runCheckWatch", () => {
     expect(scan).toHaveBeenCalledTimes(1);
   });
 
-  it("sets up a watcher for each file and the spec", async () => {
+  it("sets up a watcher for the spec, each source file, and csentry.config.ts", async () => {
     const createWatcher = vi.fn().mockReturnValue({ close: vi.fn() });
     const deps = makeWatchDeps({ createWatcher });
 
@@ -424,11 +424,11 @@ describe("runCheckWatch", () => {
     process.emit("SIGINT");
     await watchPromise;
 
-    // spec + 1 expanded file = 2 watchers
-    expect(createWatcher).toHaveBeenCalledTimes(2);
-    const paths = createWatcher.mock.calls.map((c) => c[0]);
+    // spec + 1 expanded file + csentry.config.ts = 3 watchers
+    const paths = createWatcher.mock.calls.map((c) => c[0] as string);
     expect(paths).toContain("openapi.yaml");
     expect(paths).toContain("src/routes/users.ts");
+    expect(paths.some((p) => p.endsWith("csentry.config.ts"))).toBe(true);
   });
 
   it("closes all watchers on SIGINT", async () => {
