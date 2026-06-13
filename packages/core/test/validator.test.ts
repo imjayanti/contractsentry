@@ -524,6 +524,79 @@ describe("ContractValidator — type validation", () => {
       found: "boolean",
     });
   });
+
+  it("emits warn for type mismatch on an optional field present in the return shape", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: "integer", score: "string" } }),
+      {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "integer" },
+          score: { type: "number" },
+        },
+      },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "score",
+      expected: "number",
+      found: "string",
+      severity: "warn",
+    });
+  });
+
+  it("emits no violation when optional field type matches spec", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: "integer", score: "number" } }),
+      {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "integer" },
+          score: { type: "number" },
+        },
+      },
+      "src/routes/users.ts",
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("skips optional fields not defined in spec properties", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: "integer", extra: "string" } }),
+      {
+        type: "object",
+        required: ["id"],
+        properties: { id: { type: "integer" } },
+      },
+      "src/routes/users.ts",
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("checks enum on optional string-literal field", () => {
+    const violations = validator.validate(
+      shape({ returnShape: { id: "integer", status: "'draft'" } }),
+      {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "integer" },
+          status: { type: "string", enum: ["active", "inactive"] },
+        },
+      },
+      "src/routes/users.ts",
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      field: "status",
+      expected: "one of [active, inactive]",
+      found: "draft",
+      severity: "warn",
+    });
+  });
 });
 
 describe("ContractValidator — validateRequest type validation", () => {

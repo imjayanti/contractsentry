@@ -45,6 +45,8 @@ export class ContractValidator implements IValidator {
       : [];
     const violations: Violation[] = [];
 
+    const requiredSet = new Set(required);
+
     for (const field of required) {
       const fullField = fieldPrefix + field;
       if (!Object.hasOwn(shapeFields, field)) {
@@ -61,81 +63,119 @@ export class ContractValidator implements IValidator {
         continue;
       }
 
-      const inferredValue = shapeFields[field];
-      if (typeof inferredValue === "object" && inferredValue !== null) {
-        const nestedSchema = this.fieldSchemaFor(schema, field);
-        if (nestedSchema !== null) {
-          const schemaType = this.typeFromSchema(nestedSchema);
-          if (schemaType !== null && schemaType !== "object") {
-            violations.push(
-              this.buildViolation(
-                shape,
-                file,
-                fullField,
-                "warn",
-                schemaType,
-                "object",
-              ),
-            );
-          } else {
-            violations.push(
-              ...this.checkFields(
-                inferredValue,
-                shape,
-                nestedSchema,
-                file,
-                `${fullField}.`,
-              ),
-            );
-          }
-        }
-      } else {
-        const fieldSchema = this.fieldSchemaFor(schema, field);
-        const specType =
-          fieldSchema !== null ? this.typeFromSchema(fieldSchema) : null;
+      violations.push(
+        ...this.checkFieldValue(
+          field,
+          fullField,
+          shapeFields[field],
+          schema,
+          shape,
+          file,
+        ),
+      );
+    }
 
-        if (
-          inferredValue !== null &&
-          specType !== null &&
-          !this.typesCompatible(inferredValue, specType)
-        ) {
+    // Type-check optional fields that appear in the return shape and have a
+    // spec definition — they're not required, so no "missing" error, but a
+    // wrong type is still a contract violation.
+    for (const field of Object.keys(shapeFields)) {
+      if (requiredSet.has(field)) continue;
+      const fieldSchema = this.fieldSchemaFor(schema, field);
+      if (fieldSchema === null) continue;
+      const fullField = fieldPrefix + field;
+      violations.push(
+        ...this.checkFieldValue(
+          field,
+          fullField,
+          shapeFields[field],
+          schema,
+          shape,
+          file,
+        ),
+      );
+    }
+
+    return violations;
+  }
+
+  private checkFieldValue(
+    field: string,
+    fullField: string,
+    inferredValue: FieldShape,
+    schema: Record<string, unknown>,
+    shape: FunctionShape,
+    file: string,
+  ): Violation[] {
+    const violations: Violation[] = [];
+    if (typeof inferredValue === "object" && inferredValue !== null) {
+      const nestedSchema = this.fieldSchemaFor(schema, field);
+      if (nestedSchema !== null) {
+        const schemaType = this.typeFromSchema(nestedSchema);
+        if (schemaType !== null && schemaType !== "object") {
           violations.push(
             this.buildViolation(
               shape,
               file,
               fullField,
               "warn",
-              specType,
-              inferredValue,
+              schemaType,
+              "object",
             ),
           );
-        } else if (
-          inferredValue !== null &&
-          this.isStringLiteral(inferredValue)
-        ) {
-          const enumValues =
-            fieldSchema !== null
-              ? this.enumValuesFromSchema(fieldSchema)
-              : null;
-          if (enumValues !== null) {
-            const literal = this.stripQuotes(inferredValue);
-            if (!enumValues.includes(literal)) {
-              violations.push(
-                this.buildViolation(
-                  shape,
-                  file,
-                  fullField,
-                  "warn",
-                  `one of [${enumValues.join(", ")}]`,
-                  literal,
-                ),
-              );
-            }
+        } else {
+          violations.push(
+            ...this.checkFields(
+              inferredValue,
+              shape,
+              nestedSchema,
+              file,
+              `${fullField}.`,
+            ),
+          );
+        }
+      }
+    } else {
+      const fieldSchema = this.fieldSchemaFor(schema, field);
+      const specType =
+        fieldSchema !== null ? this.typeFromSchema(fieldSchema) : null;
+      if (
+        inferredValue !== null &&
+        specType !== null &&
+        !this.typesCompatible(inferredValue, specType)
+      ) {
+        violations.push(
+          this.buildViolation(
+            shape,
+            file,
+            fullField,
+            "warn",
+            specType,
+            inferredValue,
+          ),
+        );
+      } else if (
+        inferredValue !== null &&
+        this.isStringLiteral(inferredValue)
+      ) {
+        const enumValues =
+          fieldSchema !== null ? this.enumValuesFromSchema(fieldSchema) : null;
+        if (enumValues !== null) {
+          const literal = this.stripQuotes(inferredValue);
+          if (!enumValues.includes(literal)) {
+            violations.push(
+              this.buildViolation(
+                shape,
+                file,
+                fullField,
+                "warn",
+                `one of [${enumValues.join(", ")}]`,
+                literal,
+              ),
+            );
           }
         }
       }
     }
-
     return violations;
   }
 
