@@ -1,5 +1,11 @@
 # @contractsentry/core
 
+## 0.4.0
+
+### Minor Changes
+
+- 38552cd: Auto-detect TypeScript framework routes (Express, Hono, Fastify) from inline handler call expressions — no `// @route` annotation required. Express `:param` segments are automatically converted to OpenAPI `{param}` format.
+
 ## 0.3.1
 
 ### Patch Changes
