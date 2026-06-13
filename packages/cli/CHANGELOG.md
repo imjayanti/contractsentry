@@ -1,5 +1,16 @@
 # @contractsentry/cli
 
+## 0.3.3
+
+### Patch Changes
+
+- e434024: Add JavaScript file support and Express `.route()` chaining detection
+
+  `@contractsentry/core` now detects routes defined via Express-style `.route('/path').get(handler).post(handler)` chaining, including arbitrarily deep chains. The TypeScript/JavaScript analyzer already parsed `.js` files correctly; CLI help text has been updated to reflect this.
+
+- Updated dependencies [e434024]
+  - @contractsentry/core@0.5.0
+
 ## 0.3.2
 
 ### Patch Changes
