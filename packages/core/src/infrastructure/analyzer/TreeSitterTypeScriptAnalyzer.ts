@@ -408,6 +408,9 @@ export class TreeSitterTypeScriptAnalyzer {
       rawPath = chained.rawPath;
       routerName = chained.routerName;
     } else {
+      // If the object is itself a call (e.g. db.query(...).get(...)) and no
+      // .route() ancestor was found, this isn't a framework route.
+      if (objectNode?.type === "call_expression") return null;
       if (argChildren.length < 2) return null;
       const firstArg = argChildren[0];
       if (firstArg.type !== "string") return null;

@@ -860,6 +860,27 @@ describe("TreeSitterTypeScriptAnalyzer — framework route auto-detection", () =
     expect(shapes.filter((s) => s.endpointGuess !== null)).toHaveLength(0);
   });
 
+  it("ignores non-router call chains like db.query().get()", () => {
+    const source =
+      "db.query('/users').get('/path', (req, res) => { res.json({ id: 1 }); });";
+    const shapes = analyzer.analyze(source);
+    expect(shapes.filter((s) => s.endpointGuess !== null)).toHaveLength(0);
+  });
+
+  it("still detects router.get() when object is a plain identifier", () => {
+    const source =
+      "router.get('/users', (req, res) => { res.json({ id: 1 }); });";
+    const shapes = analyzer.analyze(source);
+    expect(shapes.find((s) => s.endpointGuess === "GET /users")).toBeDefined();
+  });
+
+  it("still detects routes when receiver is a member expression like this.app", () => {
+    const source =
+      "this.app.get('/users', (req, res) => { res.json({ id: 1 }); });";
+    const shapes = analyzer.analyze(source);
+    expect(shapes.find((s) => s.endpointGuess === "GET /users")).toBeDefined();
+  });
+
   it("detects route with middleware args before handler", () => {
     const source = [
       "router.post('/items', authMiddleware, validateBody, async (req, res) => {",
