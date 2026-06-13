@@ -8,14 +8,21 @@ const { version } = require("../package.json") as { version: string };
 
 program
   .name("csentry")
-  .description("Validate TypeScript return shapes against OpenAPI contracts")
+  .description(
+    "Validate TypeScript/JavaScript return shapes against OpenAPI contracts",
+  )
   .version(version);
 
 program
   .command("check")
-  .description("Scan TypeScript files and report contract violations")
+  .description(
+    "Scan TypeScript/JavaScript files and report contract violations",
+  )
   .option("--spec <path>", "path to OpenAPI spec file")
-  .option("--files <glob...>", "glob pattern(s) of TypeScript files to scan")
+  .option(
+    "--files <glob...>",
+    "glob pattern(s) of TypeScript/JavaScript files to scan",
+  )
   .option("--ai", "enable AI-powered drift detection via Anthropic")
   .option(
     "--audit",

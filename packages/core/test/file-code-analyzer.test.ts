@@ -70,6 +70,23 @@ describe("FileCodeAnalyzer — edge cases", () => {
     expect((await analyzer.analyze(file)).size).toBe(0);
   });
 
+  it("parses .js files using the TypeScript analyzer", async () => {
+    const file = join(dir, "routes.js");
+    await writeFile(
+      file,
+      [
+        "router.get('/users', (req, res) => {",
+        "  res.json({ id: 1 });",
+        "});",
+      ].join("\n"),
+    );
+    const shapes = await analyzer.analyze(file);
+    const route = [...shapes.values()].find(
+      (s) => s.endpointGuess === "GET /users",
+    );
+    expect(route).toBeDefined();
+  });
+
   it("returns empty map for an empty file", async () => {
     const file = join(dir, "empty.ts");
     await writeFile(file, "");

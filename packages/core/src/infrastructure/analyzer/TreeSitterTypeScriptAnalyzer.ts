@@ -391,14 +391,31 @@ export class TreeSitterTypeScriptAnalyzer {
     if (!argsNode) return null;
 
     const argChildren = argsNode.namedChildren;
-    if (argChildren.length < 2) return null;
+    const objectNode = fn.childForFieldName("object");
 
-    // First arg must be a string literal (the route path)
-    const firstArg = argChildren[0];
-    if (firstArg.type !== "string") return null;
+    // Detect router.route('/path').METHOD(handler) chaining (including deeper
+    // chains like .route().get().post())
+    const chained =
+      objectNode?.type === "call_expression"
+        ? this.resolveRouteChain(objectNode)
+        : null;
+
+    let rawPath: string;
+    let routerName: string;
+
+    if (chained) {
+      if (argChildren.length < 1) return null;
+      rawPath = chained.rawPath;
+      routerName = chained.routerName;
+    } else {
+      if (argChildren.length < 2) return null;
+      const firstArg = argChildren[0];
+      if (firstArg.type !== "string") return null;
+      rawPath = firstArg.text.slice(1, -1);
+      routerName = objectNode?.text ?? "router";
+    }
 
     // Strip quotes; convert Express :param to OpenAPI {param}
-    const rawPath = firstArg.text.slice(1, -1);
     const path = rawPath.replace(/:([^/{}]+)/g, "{$1}");
 
     // Last arg must be an inline function (arrow or function expression)
@@ -412,11 +429,8 @@ export class TreeSitterTypeScriptAnalyzer {
       ? this.extractHandlerShape(handlerBody)
       : EMPTY_SHAPE;
 
-    const objectNode = fn.childForFieldName("object");
-    const name = `${objectNode?.text ?? "router"}.${method}("${rawPath}")`;
-
     return {
-      name,
+      name: `${routerName}.${method}("${rawPath}")`,
       endpointGuess: `${method.toUpperCase()} ${path}`,
       statusHint: null,
       returnShape,
@@ -425,6 +439,34 @@ export class TreeSitterTypeScriptAnalyzer {
       suppressed: false,
       isDynamic,
     };
+  }
+
+  // Walks a call_expression chain looking for a .route('/path') ancestor.
+  // Returns the path and router name when found, null otherwise.
+  // Handles arbitrary depth: router.route('/p').get(h).post(h) etc.
+  private resolveRouteChain(
+    node: SyntaxNode,
+  ): { rawPath: string; routerName: string } | null {
+    let current: SyntaxNode = node;
+    while (current.type === "call_expression") {
+      const fn = current.childForFieldName("function");
+      if (fn?.type !== "member_expression") return null;
+      const prop = fn.childForFieldName("property");
+      if (!prop) return null;
+      if (prop.text === "route") {
+        const args = current.childForFieldName("arguments");
+        const pathNode = args?.namedChildren[0];
+        if (pathNode?.type !== "string") return null;
+        return {
+          rawPath: pathNode.text.slice(1, -1),
+          routerName: fn.childForFieldName("object")?.text ?? "router",
+        };
+      }
+      const obj = fn.childForFieldName("object");
+      if (!obj) return null;
+      current = obj;
+    }
+    return null;
   }
 
   private extractHandlerShape(body: SyntaxNode): ShapeResult {

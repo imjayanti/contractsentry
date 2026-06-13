@@ -904,4 +904,59 @@ describe("TreeSitterTypeScriptAnalyzer — framework route auto-detection", () =
     const routes = shapes.filter((s) => s.endpointGuess === "GET /users");
     expect(routes).toHaveLength(1);
   });
+
+  it("detects router.route().get() chaining with block body", () => {
+    const source = [
+      "router.route('/users/:id')",
+      "  .get(async (req, res) => {",
+      "    res.json({ id: 1, name: 'Bob' });",
+      "  });",
+    ].join("\n");
+    const shapes = analyzer.analyze(source);
+    const route = shapes.find((s) => s.endpointGuess === "GET /users/{id}");
+    expect(route).toBeDefined();
+    expect(route?.returnShape).toEqual({ id: "integer", name: "'Bob'" });
+  });
+
+  it("detects multiple HTTP methods on the same router.route() chain", () => {
+    const source = [
+      "router.route('/items')",
+      "  .get((req, res) => { res.json({ items: [] }); })",
+      "  .post((req, res) => { res.json({ created: true }); });",
+    ].join("\n");
+    const shapes = analyzer.analyze(source);
+    expect(shapes.find((s) => s.endpointGuess === "GET /items")).toBeDefined();
+    expect(shapes.find((s) => s.endpointGuess === "POST /items")).toBeDefined();
+  });
+
+  it("normalises :param in router.route() path", () => {
+    const source = [
+      "router.route('/orgs/:orgId/repos/:repoId')",
+      "  .delete((req, res) => { res.json({ ok: true }); });",
+    ].join("\n");
+    const shapes = analyzer.analyze(source);
+    const route = shapes.find(
+      (s) => s.endpointGuess === "DELETE /orgs/{orgId}/repos/{repoId}",
+    );
+    expect(route).toBeDefined();
+  });
+
+  it("ignores router.route() called alone with no HTTP method chained", () => {
+    const source = "router.route('/users');";
+    const shapes = analyzer.analyze(source);
+    expect(shapes.filter((s) => s.endpointGuess !== null)).toHaveLength(0);
+  });
+
+  it("ignores router.route() with no path argument", () => {
+    const source =
+      "router.route().get((req, res) => { res.json({ ok: true }); });";
+    const shapes = analyzer.analyze(source);
+    expect(shapes.filter((s) => s.endpointGuess !== null)).toHaveLength(0);
+  });
+
+  it("ignores router.route().get() with no handler argument", () => {
+    const source = "router.route('/users').get();";
+    const shapes = analyzer.analyze(source);
+    expect(shapes.filter((s) => s.endpointGuess !== null)).toHaveLength(0);
+  });
 });
