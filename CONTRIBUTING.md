@@ -144,6 +144,19 @@ Types:  feat | fix | chore | ci | test | docs | refactor
 Scopes: core | cli | repo
 ```
 
+## Good First Issues
+
+New to the project? Start with issues tagged [`good first issue`](https://github.com/imjayanti/contractsentry/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) — each one is self-contained, has clear acceptance criteria, and doesn't require deep knowledge of the full codebase.
+
+**Examples of good first issues:**
+
+- **New framework support** — add route detection for a framework not yet covered (e.g. Koa, Elysia). The pattern lives in `packages/core/src/infrastructure/analyzer/TreeSitterTypeScriptAnalyzer.ts`.
+- **Better error messages** — improve the output when a required spec field is missing or the spec file can't be parsed.
+- **New example project** — add a worked example to `examples/` that shows ContractSentry catching drift in a real-world setup.
+- **Bug fixes** — pick up any confirmed bug from the issue tracker and fix it with a test.
+
+If you want to work on something that isn't labelled yet, open an issue or comment on an existing one and we'll help scope it.
+
 ## Reporting Issues
 
 Please open an issue on GitHub with:
