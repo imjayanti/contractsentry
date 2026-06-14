@@ -2,8 +2,11 @@
 
 [![CI](https://github.com/imjayanti/contractsentry/actions/workflows/ci.yml/badge.svg)](https://github.com/imjayanti/contractsentry/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@contractsentry/cli)](https://www.npmjs.com/package/@contractsentry/cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > Catch OpenAPI contract drift at dev time before it hits production.
+
+<img src="assets/demo.gif" alt="ContractSentry demo" width="700">
 
 AI coding tools (Copilot, Cursor, Claude Code) generate code that silently drifts from your OpenAPI contracts. ContractSentry is an open-source CLI that validates your TypeScript return shapes and request parameters against your spec and fails CI when drift is detected.
 
@@ -12,8 +15,34 @@ AI coding tools (Copilot, Cursor, Claude Code) generate code that silently drift
 ## Quickstart
 
 ```bash
+# Point at your OpenAPI spec and TypeScript/Python source files — no install required
 npx @contractsentry/cli check --spec openapi.yaml --files 'src/**/*.ts'
 ```
+
+**Step-by-step setup:**
+
+1. **Install** (or use `npx` to skip this):
+   ```bash
+   npm install -g @contractsentry/cli
+   ```
+
+2. **Check your API routes against your spec**:
+   ```bash
+   csentry check --spec openapi.yaml --files 'src/**/*.ts'
+   ```
+
+3. **Add `csentry.config.ts`** to avoid repeating flags:
+   ```typescript
+   export default { spec: "openapi.yaml", files: ["src/**/*.ts"] };
+   ```
+
+4. **Wire into CI** via the official GitHub Action:
+   ```yaml
+   - uses: imjayanti/contractsentry@v1
+     with:
+       spec: openapi.yaml
+       files: src/**/*.ts
+   ```
 
 ---
 
