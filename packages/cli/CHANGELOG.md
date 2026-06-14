@@ -1,5 +1,11 @@
 # @contractsentry/cli
 
+## 0.4.1
+
+### Patch Changes
+
+- 7a5b12b: Add npm description, homepage, and keywords for better package discoverability
+
 ## 0.4.0
 
 ### Minor Changes
