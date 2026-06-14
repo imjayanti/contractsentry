@@ -3,6 +3,7 @@
 [![CI](https://github.com/imjayanti/contractsentry/actions/workflows/ci.yml/badge.svg)](https://github.com/imjayanti/contractsentry/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@contractsentry/cli)](https://www.npmjs.com/package/@contractsentry/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/imjayanti)
 
 > Catch OpenAPI contract drift at dev time before it hits production.
 
